@@ -9,55 +9,6 @@ export default function HomePage() {
         <div className="absolute -top-40 left-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-sky-500/20 blur-3xl" />
       </div>
 
-      {/* NAVBAR */}
-      <header className="border-b border-slate-800/60">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 md:px-6">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-sky-500/10 ring-1 ring-sky-500/40">
-              <span className="text-lg font-semibold text-sky-300">Bz</span>
-            </div>
-            <div className="flex flex-col leading-tight">
-              <span className="text-sm font-semibold tracking-wide">
-                Bondalayze
-              </span>
-              <span className="text-[10px] uppercase tracking-[0.18em] text-slate-400">
-                Conversation Insight
-              </span>
-            </div>
-          </Link>
-
-          <nav className="hidden items-center gap-6 text-sm text-slate-300 md:flex">
-            <a href="#how-it-works" className="hover:text-sky-300">
-              How it works
-            </a>
-            <a href="#features" className="hover:text-sky-300">
-              Features
-            </a>
-            <a href="#pricing" className="hover:text-sky-300">
-              Pricing
-            </a>
-            <a href="#faq" className="hover:text-sky-300">
-              FAQ
-            </a>
-          </nav>
-
-          <div className="flex items-center gap-2">
-            <Link
-              href="/login"
-              className="hidden rounded-full border border-slate-700 px-3 py-1.5 text-xs font-medium text-slate-200 hover:border-sky-500/70 hover:text-sky-300 md:inline-flex"
-            >
-              Log in
-            </Link>
-            <Link
-              href="/analyze"
-              className="inline-flex items-center rounded-full bg-sky-500 px-3.5 py-1.5 text-xs font-semibold text-slate-950 shadow-sm hover:bg-sky-400 md:text-sm"
-            >
-              Start free
-            </Link>
-          </div>
-        </div>
-      </header>
-
       {/* HERO */}
       <section className="border-b border-slate-800/60">
         <div className="mx-auto flex max-w-6xl flex-col gap-10 px-4 py-12 md:flex-row md:items-center md:px-6 md:py-20">
@@ -88,6 +39,7 @@ export default function HomePage() {
                 >
                   Start with 10 free analyses
                 </Link>
+
                 <Link
                   href="/pricing"
                   className="inline-flex items-center justify-center rounded-full border border-slate-700 px-4 py-2 text-sm font-medium text-slate-100 hover:border-sky-400/80 hover:text-sky-200"
@@ -95,6 +47,7 @@ export default function HomePage() {
                   View pricing
                 </Link>
               </div>
+
               <p className="text-[11px] text-slate-400">
                 No card needed · Not therapy · Just insight
               </p>
@@ -126,8 +79,12 @@ export default function HomePage() {
 
               <div className="mt-3 flex items-center justify-between">
                 <div>
-                  <div className="text-[11px] text-slate-400">Relationship score</div>
-                  <div className="text-3xl font-semibold text-slate-50">74/100</div>
+                  <div className="text-[11px] text-slate-400">
+                    Relationship score
+                  </div>
+                  <div className="text-3xl font-semibold text-slate-50">
+                    74/100
+                  </div>
                 </div>
                 <div className="flex gap-4 text-[11px]">
                   <div className="text-right">
@@ -154,7 +111,9 @@ export default function HomePage() {
 
               <div className="mt-4 grid grid-cols-2 gap-3 text-[11px]">
                 <div className="rounded-2xl border border-emerald-700/60 bg-emerald-950/40 p-3">
-                  <div className="mb-1 font-medium text-emerald-300">Greens</div>
+                  <div className="mb-1 font-medium text-emerald-300">
+                    Greens
+                  </div>
                   <ul className="space-y-1 text-emerald-100">
                     <li>• Honest check-ins after conflict</li>
                     <li>• Both apologize sometimes</li>
@@ -212,38 +171,18 @@ export default function HomePage() {
           </p>
 
           <div className="mt-8 grid gap-6 md:grid-cols-3">
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5">
-              <div className="mb-3 flex h-8 w-8 items-center justify-center rounded-full bg-sky-500/15 text-xs font-semibold text-sky-300">
-                1
-              </div>
-              <h3 className="text-sm font-semibold">Paste your conversation</h3>
-              <p className="mt-2 text-xs leading-relaxed text-slate-300">
-                Copy chat messages or write out a summary of what was said. Works
-                for partners, friends, family or situationships.
-              </p>
-            </div>
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5">
-              <div className="mb-3 flex h-8 w-8 items-center justify-center rounded-full bg-sky-500/15 text-xs font-semibold text-sky-300">
-                2
-              </div>
-              <h3 className="text-sm font-semibold">
-                AI reads emotional patterns
-              </h3>
-              <p className="mt-2 text-xs leading-relaxed text-slate-300">
-                Bondalayze focuses on tone, effort, triggers and attachment
-                patterns — not grammar or “who is right.”
-              </p>
-            </div>
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5">
-              <div className="mb-3 flex h-8 w-8 items-center justify-center rounded-full bg-sky-500/15 text-xs font-semibold text-sky-300">
-                3
-              </div>
-              <h3 className="text-sm font-semibold">Get gentle next steps</h3>
-              <p className="mt-2 text-xs leading-relaxed text-slate-300">
-                You see greens, reds, risks and a few simple suggestions you can
-                actually try in real life.
-              </p>
-            </div>
+            <CardStep num="1" title="Paste your conversation">
+              Copy chat messages or write out a summary. Works for partners,
+              friends, family or situationships.
+            </CardStep>
+            <CardStep num="2" title="AI reads emotional patterns">
+              Bondalayze focuses on tone, effort, triggers and attachment
+              patterns — not grammar or “who is right.”
+            </CardStep>
+            <CardStep num="3" title="Get gentle next steps">
+              You see greens, reds, risks and a few simple suggestions you can
+              try in real life.
+            </CardStep>
           </div>
         </div>
       </section>
@@ -255,8 +194,7 @@ export default function HomePage() {
             See what you&apos;re really saying to each other
           </h2>
           <p className="mt-2 text-center text-sm text-slate-400 md:text-base">
-            Bondalayze turns confusing chats into structured, emotional
-            summaries.
+            Bondalayze turns confusing chats into structured, emotional summaries.
           </p>
 
           <div className="mt-8 grid gap-6 md:grid-cols-2">
@@ -278,6 +216,7 @@ export default function HomePage() {
                 how your fights usually form.
               </FeatureItem>
             </div>
+
             <div className="space-y-4 text-sm text-slate-200">
               <FeatureItem title="Multiple spaces (relationships)">
                 Keep separate spaces for partner, ex, friend, family or
@@ -314,7 +253,6 @@ export default function HomePage() {
           </div>
 
           <div className="mt-8 grid gap-6 md:grid-cols-2">
-            {/* Free card */}
             <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6">
               <h3 className="text-lg font-semibold">Free</h3>
               <p className="mt-1 text-sm text-slate-400">
@@ -326,21 +264,30 @@ export default function HomePage() {
                 <li>• Score, summary, greens & reds</li>
                 <li>• Basic emotional tone & breakup risk</li>
               </ul>
+
+              <div className="mt-5">
+                <Link
+                  href="/analyze"
+                  className="inline-flex w-full items-center justify-center rounded-xl bg-sky-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-sky-400"
+                >
+                  Start free
+                </Link>
+              </div>
             </div>
 
-            {/* Pro card */}
             <div className="rounded-2xl border border-sky-500 bg-slate-900 p-6 shadow-lg shadow-sky-900/40">
               <div className="mb-1 inline-flex items-center rounded-full bg-sky-500/10 px-2 py-0.5 text-[11px] text-sky-300">
                 Early access via Gumroad
               </div>
               <h3 className="text-lg font-semibold">Pro</h3>
               <p className="mt-1 text-sm text-slate-300">
-                For couples, friends and coaches who want deeper emotional
-                insight.
+                For couples, friends and coaches who want deeper emotional insight.
               </p>
+
               <div className="mt-4 text-3xl font-semibold">
                 $9<span className="text-sm text-slate-400"> /month*</span>
               </div>
+
               <ul className="mt-4 space-y-2 text-sm text-slate-100">
                 <li>• Unlimited analyses</li>
                 <li>• Detailed emotional tone & breakup risk</li>
@@ -348,10 +295,12 @@ export default function HomePage() {
                 <li>• Per-space history & trend tracking</li>
                 <li>• Priority AI prompts during beta</li>
               </ul>
+
               <p className="mt-3 text-[11px] text-slate-400">
                 *Handled securely via Gumroad. Use the same email on Bondalayze
                 and Gumroad. We manually activate Pro during beta.
               </p>
+
               <div className="mt-5 flex flex-col gap-2 sm:flex-row">
                 <Link
                   href="/pricing"
@@ -371,11 +320,10 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* FAQ + PRIVACY */}
+      {/* FAQ */}
       <section id="faq">
         <div className="mx-auto max-w-5xl px-4 py-12 md:px-6 md:py-16">
           <div className="grid gap-10 md:grid-cols-[1.2fr,0.8fr]">
-            {/* FAQ */}
             <div>
               <h2 className="text-2xl font-semibold md:text-3xl">Questions</h2>
               <p className="mt-1 text-sm text-slate-400">
@@ -385,51 +333,38 @@ export default function HomePage() {
               <div className="mt-6 space-y-4 text-sm text-slate-200">
                 <FaqItem question="Is Bondalayze therapy?">
                   No. Bondalayze is an AI reflection tool, not therapy or a
-                  substitute for professional mental health support. It helps you
-                  understand patterns, not diagnose or prescribe.
+                  substitute for professional mental health support.
                 </FaqItem>
                 <FaqItem question="Will Bondalayze tell me to break up?">
-                  No. It never makes absolute decisions. It only highlights
-                  risks, patterns and possible directions so you can choose what
-                  feels right for you.
+                  No. It never makes absolute decisions. It only highlights risks,
+                  patterns and possible directions.
                 </FaqItem>
                 <FaqItem question="Is my data private?">
-                  Yes. Your analyses are tied to your account only. We don&apos;t
-                  share or sell your conversations. You can delete entries at any
-                  time.
+                  Yes. Your analyses are tied to your account only. You can delete
+                  entries at any time.
                 </FaqItem>
                 <FaqItem question="Who is Bondalayze for?">
-                  Anyone trying to understand relationship dynamics — partners,
-                  exes, close friends, long-distance, situationships or even
-                  family.
+                  Partners, exes, close friends, long-distance, situationships, or
+                  family — anyone needing clarity.
                 </FaqItem>
                 <FaqItem question="How does Pro activation work?">
-                  During beta, Pro is sold via Gumroad. You purchase using your
-                  email, then log in to Bondalayze with the same email. We
-                  activate your Pro plan manually within 24 hours.
+                  Buy via Gumroad → log in with the same email → we activate Pro
+                  within 24 hours during beta.
                 </FaqItem>
               </div>
             </div>
 
-            {/* Privacy card */}
             <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5">
               <h3 className="text-lg font-semibold">Privacy & safety</h3>
               <p className="mt-2 text-sm text-slate-300">
-                Bondalayze is built around emotional safety — not virality,
-                likes or public sharing.
+                Emotional safety comes first. No public feeds, no sharing, no
+                selling your data.
               </p>
               <ul className="mt-4 space-y-2 text-sm text-slate-200">
                 <li>• Your chats are private to your account</li>
-                <li>• No public profiles or feeds</li>
-                <li>• You control what to keep and what to delete</li>
+                <li>• You control what to keep and delete</li>
                 <li>• We focus on clarity, not judgment</li>
               </ul>
-              <p className="mt-4 text-xs text-slate-400">
-                If a conversation feels overwhelming or unsafe, please also
-                consider talking to a trusted friend, family member or licensed
-                professional. Bondalayze is meant to support, not replace, real
-                human care.
-              </p>
             </div>
           </div>
         </div>
@@ -440,9 +375,6 @@ export default function HomePage() {
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 py-6 text-[11px] text-slate-500 md:flex-row md:px-6">
           <p>© {new Date().getFullYear()} Bondalayze. Built for emotional clarity.</p>
           <div className="flex items-center gap-4">
-            <a href="#privacy" className="hover:text-sky-300">
-              Privacy
-            </a>
             <Link href="/pricing" className="hover:text-sky-300">
               Pricing
             </Link>
@@ -456,12 +388,33 @@ export default function HomePage() {
   );
 }
 
-type FeatureItemProps = {
+function CardStep({
+  num,
+  title,
+  children,
+}: {
+  num: string;
   title: string;
   children: React.ReactNode;
-};
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5">
+      <div className="mb-3 flex h-8 w-8 items-center justify-center rounded-full bg-sky-500/15 text-xs font-semibold text-sky-300">
+        {num}
+      </div>
+      <h3 className="text-sm font-semibold">{title}</h3>
+      <p className="mt-2 text-xs leading-relaxed text-slate-300">{children}</p>
+    </div>
+  );
+}
 
-function FeatureItem({ title, children }: FeatureItemProps) {
+function FeatureItem({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
     <div>
       <h3 className="text-sm font-semibold text-slate-50">{title}</h3>
@@ -470,12 +423,13 @@ function FeatureItem({ title, children }: FeatureItemProps) {
   );
 }
 
-type FaqItemProps = {
+function FaqItem({
+  question,
+  children,
+}: {
   question: string;
   children: React.ReactNode;
-};
-
-function FaqItem({ question, children }: FaqItemProps) {
+}) {
   return (
     <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-3">
       <div className="text-[13px] font-semibold text-slate-50">{question}</div>

@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import { createSupabaseClient } from "@/lib/supabase/client";
+import type { User } from "@supabase/supabase-js";
 import {
   LineChart,
   Line,
@@ -12,8 +14,17 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
+import { supabaseBrowser } from "@/lib/supabase/browser";
+
+
+
 type ExtraAnalysis = {
-  emotional_tone: "very_negative" | "negative" | "mixed" | "positive" | "very_positive";
+  emotional_tone:
+    | "very_negative"
+    | "negative"
+    | "mixed"
+    | "positive"
+    | "very_positive";
   breakup_risk: "low" | "medium" | "high";
   attachment_you: string;
   attachment_them: string;
@@ -87,7 +98,10 @@ function getRiskBadgeClasses(risk?: string) {
 }
 
 export default function AnalyzePage() {
-  const supabase = useMemo(() => createSupabaseClient(), []);
+  const supabase = useMemo(() => supabaseBrowser(), []);
+  const router = useRouter();
+
+  const [user, setUser] = useState<User | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [loadingUser, setLoadingUser] = useState(true);
 
@@ -110,147 +124,201 @@ export default function AnalyzePage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [historyFilter, setHistoryFilter] = useState<HistoryFilter>("all");
 
-  // current user load
+  // ✅ Single auth loader + auth state watcher (stops “Checking session…” stuck)
   useEffect(() => {
-    const loadUser = async () => {
+    let cancelled = false;
+
+    const init = async () => {
       setLoadingUser(true);
-      const {
-        data: { user },
-        error,
-      } = await supabase.auth.getUser();
+      try {
+        const { data, error } = await supabase.auth.getUser();
+        if (error) console.error("auth.getUser error:", error);
 
-      if (error) {
-        console.error("auth.getUser error:", error);
+        if (cancelled) return;
+
+        const u = data.user ?? null;
+        setUser(u);
+        setUserEmail(u?.email ?? null);
+        setLoadingUser(false);
+
+        if (!u) router.replace("/login");
+      } catch (e) {
+        console.error("auth init error:", e);
+        if (!cancelled) {
+          setUser(null);
+          setUserEmail(null);
+          setLoadingUser(false);
+          router.replace("/login");
+        }
       }
-
-      setUserEmail(user?.email ?? null);
-      setLoadingUser(false);
     };
 
-    loadUser();
-  }, [supabase]);
+    init();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (cancelled) return;
+      const u = session?.user ?? null;
+      setUser(u);
+      setUserEmail(u?.email ?? null);
+      setLoadingUser(false);
+      if (!u) router.replace("/login");
+    });
+
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
+  }, [supabase, router]);
 
   // load plan + monthly usage
   useEffect(() => {
-    const fetchPlanAndUsage = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+    let cancelled = false;
 
+    const fetchPlanAndUsage = async () => {
       if (!user) {
         setPlanInfo((prev) => ({ ...prev, loading: false }));
         return;
       }
 
-      // 1) plan from bondalayze_plans
-      const { data: planRow, error: planError } = await supabase
-        .from("bondalayze_plans")
-        .select("plan")
-        .eq("user_id", user.id)
-        .maybeSingle();
+      setPlanInfo((prev) => ({ ...prev, loading: true }));
 
-      if (planError) {
-        console.error("plan fetch error:", planError);
+      try {
+        // 1) plan from bondalayze_plans
+        const { data: planRow, error: planError } = await supabase
+          .from("bondalayze_plans")
+          .select("plan")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (planError) console.error("plan fetch error:", planError);
+
+        const plan: Plan = planRow?.plan === "pro" ? "pro" : "free";
+        const monthlyLimit: number | null = plan === "pro" ? null : 10;
+
+        // 2) count analyses this month
+        const start = new Date();
+        start.setDate(1);
+        start.setHours(0, 0, 0, 0);
+
+        const { count, error: countError } = await supabase
+          .from("conversation_analyses")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", user.id)
+          .gte("created_at", start.toISOString());
+
+        if (countError) console.error("usage count error:", countError);
+
+        if (cancelled) return;
+
+        setPlanInfo({
+          plan,
+          monthlyLimit,
+          usedThisMonth: count ?? 0,
+          loading: false,
+        });
+      } catch (e) {
+        console.error("fetchPlanAndUsage error:", e);
+        if (!cancelled) setPlanInfo((prev) => ({ ...prev, loading: false }));
       }
-
-      const plan: Plan = planRow?.plan === "pro" ? "pro" : "free";
-
-      // free = 10, pro = unlimited (null)
-      const monthlyLimit: number | null = plan === "pro" ? null : 10;
-
-      // 2) count analyses this month
-      const start = new Date();
-      start.setDate(1);
-      start.setHours(0, 0, 0, 0);
-
-      const { count, error: countError } = await supabase
-        .from("conversation_analyses")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", user.id)
-        .gte("created_at", start.toISOString());
-
-      if (countError) {
-        console.error("usage count error:", countError);
-      }
-
-      setPlanInfo({
-        plan,
-        monthlyLimit,
-        usedThisMonth: count ?? 0,
-        loading: false,
-      });
     };
 
     fetchPlanAndUsage();
-  }, [supabase]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase, user]);
 
   // load spaces
   useEffect(() => {
+    let cancelled = false;
+
     const fetchSpaces = async () => {
       setLoadingSpaces(true);
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        setSpaces([]);
-        setSelectedSpaceId(null);
-        setLoadingSpaces(false);
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from("conversation_spaces")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: true });
-
-      if (error) {
-        console.error("load spaces error:", error);
-        setSpaces([]);
-        setSelectedSpaceId(null);
-      } else {
-        const list = (data ?? []) as Space[];
-        setSpaces(list);
-        if (!selectedSpaceId && list.length) {
-          setSelectedSpaceId(list[0].id);
+      try {
+        if (!user) {
+          if (!cancelled) {
+            setSpaces([]);
+            setSelectedSpaceId(null);
+          }
+          return;
         }
-      }
 
-      setLoadingSpaces(false);
+        const { data, error } = await supabase
+          .from("conversation_spaces")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: true });
+
+        if (cancelled) return;
+
+        if (error) {
+          console.error("load spaces error:", error);
+          setSpaces([]);
+          setSelectedSpaceId(null);
+        } else {
+          const list = (data ?? []) as Space[];
+          setSpaces(list);
+
+          // keep selection if exists; otherwise pick first
+          setSelectedSpaceId((prev) => {
+            if (prev && list.some((s) => s.id === prev)) return prev;
+            return list.length ? list[0].id : null;
+          });
+        }
+      } catch (e) {
+        console.error("fetchSpaces error:", e);
+        if (!cancelled) {
+          setSpaces([]);
+          setSelectedSpaceId(null);
+        }
+      } finally {
+        if (!cancelled) setLoadingSpaces(false);
+      }
     };
 
     fetchSpaces();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabase]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase, user]);
 
   // load analysis history for selected space
   useEffect(() => {
+    let cancelled = false;
+
     const fetchHistory = async () => {
       setLoadingHistory(true);
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      try {
+        if (!user || !selectedSpaceId) {
+          if (!cancelled) {
+            setHistory([]);
+            setSelectedId(null);
+          }
+          return;
+        }
 
-      if (!user || !selectedSpaceId) {
-        setHistory([]);
-        setLoadingHistory(false);
-        return;
-      }
+        const { data, error } = await supabase
+          .from("conversation_analyses")
+          .select("*")
+          .eq("user_id", user.id)
+          .eq("space_id", selectedSpaceId)
+          .order("created_at", { ascending: false });
 
-      const { data, error } = await supabase
-        .from("conversation_analyses")
-        .select("*")
-        .eq("user_id", user.id)
-        .eq("space_id", selectedSpaceId)
-        .order("created_at", { ascending: false });
+        if (cancelled) return;
 
-      if (error) {
-        console.error("load history error:", error);
-        setHistory([]);
-      } else {
+        if (error) {
+          console.error("load history error:", error);
+          setHistory([]);
+          setSelectedId(null);
+          return;
+        }
+
         const mapped: SavedAnalysis[] =
           data?.map((row: any) => ({
             id: row.id,
@@ -268,16 +336,29 @@ export default function AnalyzePage() {
           })) ?? [];
 
         setHistory(mapped);
-        if (mapped.length && !selectedId) {
-          setSelectedId(mapped[0].id);
-        }
-      }
 
-      setLoadingHistory(false);
+        // if selectedId missing, select first
+        setSelectedId((prev) => {
+          if (prev && mapped.some((m) => m.id === prev)) return prev;
+          return mapped.length ? mapped[0].id : null;
+        });
+      } catch (e) {
+        console.error("fetchHistory error:", e);
+        if (!cancelled) {
+          setHistory([]);
+          setSelectedId(null);
+        }
+      } finally {
+        if (!cancelled) setLoadingHistory(false);
+      }
     };
 
     fetchHistory();
-  }, [supabase, selectedSpaceId, selectedId]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase, user, selectedSpaceId]);
 
   // history filter
   const filteredHistory = useMemo(() => {
@@ -288,9 +369,7 @@ export default function AnalyzePage() {
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - days);
 
-    return history.filter(
-      (item) => new Date(item.created_at) >= cutoff
-    );
+    return history.filter((item) => new Date(item.created_at) >= cutoff);
   }, [history, historyFilter]);
 
   const selectedItem =
@@ -298,7 +377,7 @@ export default function AnalyzePage() {
     filteredHistory[0] ??
     null;
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!input.trim() || submitting) return;
 
@@ -310,7 +389,7 @@ export default function AnalyzePage() {
     // free vs pro limit check
     if (
       !planInfo.loading &&
-      planInfo.monthlyLimit !== null && // only free has limit
+      planInfo.monthlyLimit !== null &&
       planInfo.usedThisMonth >= planInfo.monthlyLimit
     ) {
       alert(
@@ -321,12 +400,9 @@ export default function AnalyzePage() {
 
     setSubmitting(true);
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
       if (!user) {
         alert("Please log in with Supabase auth first.");
+        router.replace("/login");
         return;
       }
 
@@ -408,11 +484,11 @@ export default function AnalyzePage() {
     }
 
     setHistory((prev) => prev.filter((h) => h.id !== id));
-    if (selectedId === id) {
-      setSelectedId(
-        filteredHistory.find((h) => h.id !== id)?.id ?? null
-      );
-    }
+    setSelectedId((prev) => {
+      if (prev !== id) return prev;
+      const next = filteredHistory.find((h) => h.id !== id)?.id ?? null;
+      return next;
+    });
   };
 
   const handleClearAll = async () => {
@@ -420,10 +496,6 @@ export default function AnalyzePage() {
 
     const ok = confirm("Delete ALL analyses in this space?");
     if (!ok) return;
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
 
     if (!user) return;
 
@@ -441,17 +513,13 @@ export default function AnalyzePage() {
 
     setHistory([]);
     setSelectedId(null);
-    // usage reset local (optional, just visual)
     setPlanInfo((prev) => ({ ...prev, usedThisMonth: prev.usedThisMonth }));
   };
 
   const handleCreateSpace = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
     if (!user) {
       alert("Please log in first.");
+      router.replace("/login");
       return;
     }
 
@@ -505,13 +573,7 @@ export default function AnalyzePage() {
   const handleExportCSV = () => {
     if (!filteredHistory.length) return;
 
-    const header = [
-      "created_at",
-      "score",
-      "you_effort",
-      "them_effort",
-      "summary",
-    ].join(",");
+    const header = ["created_at", "score", "you_effort", "them_effort", "summary"].join(",");
 
     const rows = filteredHistory.map((item) => {
       const summary = (item.result.summary || "").replace(/"/g, '""');
@@ -673,9 +735,8 @@ export default function AnalyzePage() {
         </form>
 
         <p className="text-xs text-slate-400">
-          🔐 Data per-user save hocche{" "}
-          <code>conversation_analyses</code> table-e. Plan info{" "}
-          <code>bondalayze_plans</code> & spaces{" "}
+          🔐 Data per-user save hocche <code>conversation_analyses</code> table-e.
+          Plan info <code>bondalayze_plans</code> & spaces{" "}
           <code>conversation_spaces</code> table-e.
         </p>
       </div>
@@ -686,7 +747,6 @@ export default function AnalyzePage() {
           <h2 className="text-lg font-semibold">History</h2>
 
           <div className="flex flex-col items-end gap-1">
-            {/* filter buttons */}
             <div className="flex items-center gap-1 text-[11px]">
               <span className="text-slate-500 mr-1">Range:</span>
               {["all", "7", "30"].map((f) => (
@@ -706,7 +766,6 @@ export default function AnalyzePage() {
               ))}
             </div>
 
-            {/* export buttons (Pro only) */}
             {planInfo.plan === "pro" && filteredHistory.length > 0 && (
               <div className="flex items-center gap-2">
                 <button
@@ -728,7 +787,6 @@ export default function AnalyzePage() {
           </div>
         </div>
 
-        {/* Trend chart – Pro-only UI (free plan e blur + lock) */}
         {filteredHistory.length >= 2 && (
           <div className="relative w-full border border-slate-800 rounded-2xl p-3 bg-slate-950 overflow-hidden">
             <div className="text-xs text-slate-400 mb-1">
@@ -763,8 +821,7 @@ export default function AnalyzePage() {
                   Pro feature
                 </div>
                 <p className="text-[11px] text-slate-300 mb-2 text-center px-4">
-                  See your relationship score trend over time with Bondalayze
-                  Pro.
+                  See your relationship score trend over time with Bondalayze Pro.
                 </p>
                 <a
                   href="/pricing"
@@ -781,8 +838,8 @@ export default function AnalyzePage() {
           <div className="text-sm text-slate-400">Loading history…</div>
         ) : !history.length ? (
           <div className="text-sm text-slate-500">
-            No saved analyses yet. Choose a space, paste a conversation and
-            click <span className="text-sky-400">Analyze &amp; Save</span>.
+            No saved analyses yet. Choose a space, paste a conversation and click{" "}
+            <span className="text-sky-400">Analyze &amp; Save</span>.
           </div>
         ) : !filteredHistory.length ? (
           <div className="text-sm text-slate-500">
@@ -790,7 +847,6 @@ export default function AnalyzePage() {
           </div>
         ) : (
           <div className="flex flex-col md:flex-row gap-4 flex-1">
-            {/* history list */}
             <div className="w-full md:w-1/3 max-h-[420px] overflow-auto space-y-2 pr-1">
               {filteredHistory.map((item) => (
                 <button
@@ -850,15 +906,12 @@ export default function AnalyzePage() {
               ))}
             </div>
 
-            {/* detail panel */}
             <div className="w-full md:w-2/3 border border-slate-800 rounded-2xl p-4 flex flex-col gap-3 text-sm bg-slate-950">
               {selectedItem ? (
                 <>
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <div className="text-xs text-slate-400">
-                        Analysis score
-                      </div>
+                      <div className="text-xs text-slate-400">Analysis score</div>
                       <div className="flex items-baseline gap-2">
                         <div className="text-2xl font-semibold">
                           {selectedItem.result.score}/100
@@ -875,23 +928,17 @@ export default function AnalyzePage() {
 
                   <div className="flex gap-4 text-xs">
                     <div className="flex-1">
-                      <div className="text-emerald-400 font-semibold">
-                        You
-                      </div>
+                      <div className="text-emerald-400 font-semibold">You</div>
                       <div>{selectedItem.result.you_effort}% effort</div>
                     </div>
                     <div className="flex-1">
-                      <div className="text-amber-400 font-semibold">
-                        Them
-                      </div>
+                      <div className="text-amber-400 font-semibold">Them</div>
                       <div>{selectedItem.result.them_effort}% effort</div>
                     </div>
                   </div>
 
                   <div>
-                    <div className="text-xs text-slate-400 mb-1">
-                      Summary
-                    </div>
+                    <div className="text-xs text-slate-400 mb-1">Summary</div>
                     <p className="text-sm text-slate-100">
                       {selectedItem.result.summary}
                     </p>
@@ -930,7 +977,6 @@ export default function AnalyzePage() {
                     </div>
                   </div>
 
-                  {/* EXTRA ANALYSIS – Pro-only visual unlock */}
                   {selectedItem.result.extra && (
                     <div className="relative mt-2">
                       <div
@@ -948,8 +994,7 @@ export default function AnalyzePage() {
                             </div>
                             <div className="text-sm font-semibold">
                               {(
-                                selectedItem.result.extra?.emotional_tone ??
-                                "mixed"
+                                selectedItem.result.extra?.emotional_tone ?? "mixed"
                               ).replace("_", " ")}
                             </div>
                           </div>
@@ -958,8 +1003,7 @@ export default function AnalyzePage() {
                               Breakup risk
                             </div>
                             <div className="text-sm font-semibold">
-                              {selectedItem.result.extra?.breakup_risk ??
-                                "medium"}
+                              {selectedItem.result.extra?.breakup_risk ?? "medium"}
                             </div>
                           </div>
                         </div>
@@ -1001,11 +1045,9 @@ export default function AnalyzePage() {
                               Suggested next steps
                             </div>
                             <ul className="list-disc list-inside space-y-1 text-[13px] text-slate-100">
-                              {selectedItem.result.extra.recommendations.map(
-                                (r, idx) => (
-                                  <li key={idx}>{r}</li>
-                                )
-                              )}
+                              {selectedItem.result.extra.recommendations.map((r, idx) => (
+                                <li key={idx}>{r}</li>
+                              ))}
                             </ul>
                           </div>
                         ) : null}
@@ -1017,8 +1059,7 @@ export default function AnalyzePage() {
                             Pro-only deep insights
                           </div>
                           <p className="text-[11px] text-slate-300 mb-2 text-center px-4">
-                            See emotional tone, attachment styles & concrete
-                            next steps with Bondalayze Pro.
+                            See emotional tone, attachment styles & concrete next steps with Bondalayze Pro.
                           </p>
                           <a
                             href="/pricing"
@@ -1032,9 +1073,7 @@ export default function AnalyzePage() {
                   )}
 
                   <div>
-                    <div className="text-xs text-slate-400 mb-1">
-                      Original text
-                    </div>
+                    <div className="text-xs text-slate-400 mb-1">Original text</div>
                     <pre className="text-xs bg-slate-900 border border-slate-800 rounded-xl p-2 max-h-40 overflow-auto whitespace-pre-wrap">
                       {selectedItem.input_text}
                     </pre>
