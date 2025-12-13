@@ -2,16 +2,19 @@ import Link from "next/link";
 
 export default function HomePage() {
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-50">
+    <main className="relative min-h-[calc(100vh-80px)] text-slate-50">
       {/* Gradient background glow */}
       <div className="pointer-events-none fixed inset-0 -z-10">
         <div className="absolute inset-0 bg-gradient-to-b from-sky-900/20 via-slate-950 to-slate-950" />
         <div className="absolute -top-40 left-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-sky-500/20 blur-3xl" />
       </div>
 
+      
+
+
       {/* HERO */}
       <section className="border-b border-slate-800/60">
-        <div className="mx-auto flex max-w-6xl flex-col gap-10 px-4 py-12 md:flex-row md:items-center md:px-6 md:py-20">
+        <div className="mx-auto flex max-w-6xl flex-col gap-10 px-4 py-14 md:flex-row md:items-center md:px-6 md:py-20">
           {/* Left */}
           <div className="flex-1 space-y-6">
             <div className="inline-flex items-center gap-2 rounded-full border border-sky-500/30 bg-sky-500/10 px-3 py-1 text-[11px] text-sky-100">
@@ -53,6 +56,13 @@ export default function HomePage() {
               </p>
             </div>
 
+            {/* Micro CTA */}
+            <div className="flex items-center gap-3 text-[12px] text-slate-400">
+              <Link href="/blog" className="inline-flex items-center gap-1 hover:text-sky-200">
+                Read relationship insights <span aria-hidden>→</span>
+              </Link>
+            </div>
+
             <div className="flex flex-col gap-3 text-xs text-slate-400 sm:flex-row sm:items-center">
               <div className="flex items-center gap-2">
                 <div className="flex -space-x-2">
@@ -60,9 +70,7 @@ export default function HomePage() {
                   <div className="h-6 w-6 rounded-full bg-emerald-500/70" />
                   <div className="h-6 w-6 rounded-full bg-rose-500/70" />
                 </div>
-                <span>
-                  Used by people navigating partners, friends and family dynamics.
-                </span>
+                <span>Used across partners, friends, families, and situationships.</span>
               </div>
             </div>
           </div>
@@ -79,12 +87,8 @@ export default function HomePage() {
 
               <div className="mt-3 flex items-center justify-between">
                 <div>
-                  <div className="text-[11px] text-slate-400">
-                    Relationship score
-                  </div>
-                  <div className="text-3xl font-semibold text-slate-50">
-                    74/100
-                  </div>
+                  <div className="text-[11px] text-slate-400">Relationship score</div>
+                  <div className="text-3xl font-semibold text-slate-50">74/100</div>
                 </div>
                 <div className="flex gap-4 text-[11px]">
                   <div className="text-right">
@@ -111,9 +115,7 @@ export default function HomePage() {
 
               <div className="mt-4 grid grid-cols-2 gap-3 text-[11px]">
                 <div className="rounded-2xl border border-emerald-700/60 bg-emerald-950/40 p-3">
-                  <div className="mb-1 font-medium text-emerald-300">
-                    Greens
-                  </div>
+                  <div className="mb-1 font-medium text-emerald-300">Greens</div>
                   <ul className="space-y-1 text-emerald-100">
                     <li>• Honest check-ins after conflict</li>
                     <li>• Both apologize sometimes</li>
@@ -138,7 +140,7 @@ export default function HomePage() {
                   </div>
                 </div>
                 <div className="rounded-xl border border-slate-700 bg-slate-900 p-2">
-                  <div className="text-[10px] text-slate-400">Breakup risk</div>
+                  <div className="text-[10px] text-slate-400">Strain signal</div>
                   <div className="text-sm font-medium text-amber-300">
                     Medium, pattern-based
                   </div>
@@ -162,7 +164,7 @@ export default function HomePage() {
 
       {/* HOW IT WORKS */}
       <section id="how-it-works" className="border-b border-slate-800/60">
-        <div className="mx-auto max-w-5xl px-4 py-12 md:px-6 md:py-16">
+        <div className="mx-auto max-w-5xl px-4 py-16 md:px-6 md:py-20">
           <h2 className="text-center text-2xl font-semibold md:text-3xl">
             How Bondalayze works
           </h2>
@@ -170,7 +172,7 @@ export default function HomePage() {
             Three simple steps to move from confusion to clarity.
           </p>
 
-          <div className="mt-8 grid gap-6 md:grid-cols-3">
+          <div className="mt-10 grid gap-6 md:grid-cols-3">
             <CardStep num="1" title="Paste your conversation">
               Copy chat messages or write out a summary. Works for partners,
               friends, family or situationships.
@@ -189,7 +191,7 @@ export default function HomePage() {
 
       {/* FEATURES */}
       <section id="features" className="border-b border-slate-800/60">
-        <div className="mx-auto max-w-5xl px-4 py-12 md:px-6 md:py-16">
+        <div className="mx-auto max-w-5xl px-4 py-16 md:px-6 md:py-20">
           <h2 className="text-center text-2xl font-semibold md:text-3xl">
             See what you&apos;re really saying to each other
           </h2>
@@ -197,8 +199,8 @@ export default function HomePage() {
             Bondalayze turns confusing chats into structured, emotional summaries.
           </p>
 
-          <div className="mt-8 grid gap-6 md:grid-cols-2">
-            <div className="space-y-4 text-sm text-slate-200">
+          <div className="mt-10 grid gap-8 md:grid-cols-2">
+            <div className="space-y-5 text-sm text-slate-200">
               <FeatureItem title="Emotional tone mapping">
                 Quickly see if the overall tone is caring, anxious, distant or
                 mixed, with a short explanation.
@@ -217,7 +219,7 @@ export default function HomePage() {
               </FeatureItem>
             </div>
 
-            <div className="space-y-4 text-sm text-slate-200">
+            <div className="space-y-5 text-sm text-slate-200">
               <FeatureItem title="Multiple spaces (relationships)">
                 Keep separate spaces for partner, ex, friend, family or
                 situationship — each with its own history.
@@ -239,9 +241,48 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* BLOG PREVIEW */}
+      <section id="latest" className="border-b border-slate-800/60">
+        <div className="mx-auto max-w-5xl px-4 py-16 md:px-6 md:py-20">
+          <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-end">
+            <div>
+              <h2 className="text-2xl font-semibold md:text-3xl">Latest insights</h2>
+              <p className="mt-2 text-sm text-slate-400 md:text-base">
+                Short, gentle reads on communication patterns and emotional clarity.
+              </p>
+            </div>
+            <Link
+              href="/blog"
+              className="inline-flex items-center gap-1 text-sm text-sky-200 hover:text-sky-100"
+            >
+              View all posts <span aria-hidden>→</span>
+            </Link>
+          </div>
+
+          {/* Placeholder cards (replace with real posts later) */}
+          <div className="mt-10 grid gap-6 md:grid-cols-3">
+            <BlogPreviewCard
+              category="Communication"
+              title="What One-Sided Texting Feels Like Over Time"
+              excerpt="Sometimes it’s not one bad day — it’s a pattern that quietly builds."
+            />
+            <BlogPreviewCard
+              category="Dating"
+              title="Dry Replies vs Low Interest: How It Shows Up"
+              excerpt="A calm way to notice signals without jumping to conclusions."
+            />
+            <BlogPreviewCard
+              category="Self-growth"
+              title="Why We Over-Explain When We Feel Unsafe"
+              excerpt="When anxiety spikes, clarity can turn into looping reassurance."
+            />
+          </div>
+        </div>
+      </section>
+
       {/* PRICING PREVIEW */}
       <section id="pricing" className="border-b border-slate-800/60">
-        <div className="mx-auto max-w-5xl px-4 py-12 md:px-6 md:py-16">
+        <div className="mx-auto max-w-5xl px-4 py-16 md:px-6 md:py-20">
           <div className="flex flex-col items-center gap-3 text-center">
             <h2 className="text-2xl font-semibold md:text-3xl">
               Start free. Upgrade when it feels right.
@@ -252,7 +293,7 @@ export default function HomePage() {
             </p>
           </div>
 
-          <div className="mt-8 grid gap-6 md:grid-cols-2">
+          <div className="mt-10 grid gap-6 md:grid-cols-2">
             <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6">
               <h3 className="text-lg font-semibold">Free</h3>
               <p className="mt-1 text-sm text-slate-400">
@@ -262,7 +303,7 @@ export default function HomePage() {
               <ul className="mt-4 space-y-2 text-sm text-slate-200">
                 <li>• Up to 10 analyses per month</li>
                 <li>• Score, summary, greens & reds</li>
-                <li>• Basic emotional tone & breakup risk</li>
+                <li>• Basic emotional tone & strain signal</li>
               </ul>
 
               <div className="mt-5">
@@ -288,9 +329,11 @@ export default function HomePage() {
                 $9<span className="text-sm text-slate-400"> /month*</span>
               </div>
 
+              <p className="mt-2 text-[11px] text-slate-400">Cancel anytime · No long-term commitment</p>
+
               <ul className="mt-4 space-y-2 text-sm text-slate-100">
                 <li>• Unlimited analyses</li>
-                <li>• Detailed emotional tone & breakup risk</li>
+                <li>• Detailed emotional tone & strain signal</li>
                 <li>• Attachment & conflict pattern breakdown</li>
                 <li>• Per-space history & trend tracking</li>
                 <li>• Priority AI prompts during beta</li>
@@ -322,7 +365,7 @@ export default function HomePage() {
 
       {/* FAQ */}
       <section id="faq">
-        <div className="mx-auto max-w-5xl px-4 py-12 md:px-6 md:py-16">
+        <div className="mx-auto max-w-5xl px-4 py-16 md:px-6 md:py-20">
           <div className="grid gap-10 md:grid-cols-[1.2fr,0.8fr]">
             <div>
               <h2 className="text-2xl font-semibold md:text-3xl">Questions</h2>
@@ -369,21 +412,6 @@ export default function HomePage() {
           </div>
         </div>
       </section>
-
-      {/* FOOTER */}
-      <footer className="border-t border-slate-800/60">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 py-6 text-[11px] text-slate-500 md:flex-row md:px-6">
-          <p>© {new Date().getFullYear()} Bondalayze. Built for emotional clarity.</p>
-          <div className="flex items-center gap-4">
-            <Link href="/pricing" className="hover:text-sky-300">
-              Pricing
-            </Link>
-            <Link href="/analyze" className="hover:text-sky-300">
-              Start free
-            </Link>
-          </div>
-        </div>
-      </footer>
     </main>
   );
 }
@@ -433,9 +461,32 @@ function FaqItem({
   return (
     <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-3">
       <div className="text-[13px] font-semibold text-slate-50">{question}</div>
-      <p className="mt-1 text-[12px] leading-relaxed text-slate-300">
-        {children}
-      </p>
+      <p className="mt-1 text-[12px] leading-relaxed text-slate-300">{children}</p>
+    </div>
+  );
+}
+
+function BlogPreviewCard({
+  category,
+  title,
+  excerpt,
+}: {
+  category: string;
+  title: string;
+  excerpt: string;
+}) {
+  return (
+    <div className="group rounded-2xl border border-slate-800 bg-slate-900/70 p-5 hover:border-sky-400/50">
+      <div className="mb-3 inline-flex rounded-full border border-slate-700 bg-slate-900 px-2 py-0.5 text-[11px] text-slate-300">
+        {category}
+      </div>
+      <div className="text-sm font-semibold text-slate-50 group-hover:text-sky-200">
+        {title}
+      </div>
+      <p className="mt-2 text-xs leading-relaxed text-slate-300">{excerpt}</p>
+      <div className="mt-4 text-[12px] text-sky-200">
+        Read <span aria-hidden>→</span>
+      </div>
     </div>
   );
 }

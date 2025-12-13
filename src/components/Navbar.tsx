@@ -2,28 +2,34 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
 
 export default function Navbar() {
   const supabase = useMemo(() => createClient(), []);
   const pathname = usePathname();
+  const router = useRouter();
 
-  const [isAuthed, setIsAuthed] = useState<boolean>(false);
+  const [isAuthed, setIsAuthed] = useState(false);
+  const [checking, setChecking] = useState(true);
 
   useEffect(() => {
     let mounted = true;
 
     const boot = async () => {
+      setChecking(true);
       const { data } = await supabase.auth.getSession();
       if (!mounted) return;
       setIsAuthed(!!data.session);
+      setChecking(false);
     };
 
     boot();
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) return;
       setIsAuthed(!!session);
+      setChecking(false);
     });
 
     return () => {
@@ -34,22 +40,36 @@ export default function Navbar() {
 
   const logout = async () => {
     await supabase.auth.signOut();
-    // ✅ hard redirect (সব state reset)
-    window.location.href = "/login";
+    router.replace("/login"); // ✅ cleaner than href (less stuck/back issues)
   };
 
-  const linkClass = (href: string) =>
-    "text-sm " +
-    (pathname === href ? "text-slate-50" : "text-slate-200/80 hover:text-slate-50");
+  const isActive = (href: string) => {
+    if (href === "/blog") return pathname.startsWith("/blog");
+    return pathname === href;
+  };
+
+  const linkClass = (href: string) => {
+    const base =
+      "text-sm rounded-full px-3 py-1.5 transition border";
+    const active =
+      "text-slate-50 border-sky-400/50 bg-sky-500/10";
+    const idle =
+      "text-slate-200/80 border-transparent hover:text-slate-50 hover:border-slate-700";
+
+    return `${base} ${isActive(href) ? active : idle}`;
+  };
 
   return (
-    <nav className="w-full bg-slate-800/60 border-b border-slate-800">
-      <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between">
-        <Link href="/" className="font-semibold text-slate-50">
+    <header className="sticky top-0 z-50 w-full border-b border-slate-800/70 bg-slate-950/50 backdrop-blur">
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
+        <Link href="/" className="font-semibold tracking-tight text-slate-50">
           Bondalayze
         </Link>
 
-        <div className="flex items-center gap-4">
+        <nav className="flex items-center gap-1 sm:gap-2">
+          <Link href="/blog" className={linkClass("/blog")}>
+            Blog
+          </Link>
           <Link href="/analyze" className={linkClass("/analyze")}>
             Analyze
           </Link>
@@ -57,31 +77,32 @@ export default function Navbar() {
             Pricing
           </Link>
 
-          {/* ✅ Profile auto-hide when logged out */}
-          {isAuthed && (
-            <Link href="/profile" className={linkClass("/profile")}>
-              Profile
-            </Link>
-          )}
+          {/* During initial session check, don’t flicker wrong buttons */}
+          {checking ? (
+            <div className="ml-2 h-9 w-20 animate-pulse rounded-full bg-slate-800/60" />
+          ) : isAuthed ? (
+            <>
+              <Link href="/profile" className={linkClass("/profile")}>
+                Profile
+              </Link>
 
-          {/* ✅ Global logout button when logged in */}
-          {isAuthed ? (
-            <button
-              onClick={logout}
-              className="text-sm rounded-md bg-violet-500 hover:bg-violet-400 text-slate-950 font-medium px-3 py-1.5"
-            >
-              Logout
-            </button>
+              <button
+                onClick={logout}
+                className="ml-2 rounded-full bg-violet-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-violet-400"
+              >
+                Logout
+              </button>
+            </>
           ) : (
             <Link
               href="/login"
-              className="text-sm rounded-md border border-slate-600 hover:border-slate-400 text-slate-100 px-3 py-1.5"
+              className="ml-2 rounded-full border border-slate-700 bg-slate-900/40 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-slate-500 hover:text-slate-50"
             >
               Login
             </Link>
           )}
-        </div>
+        </nav>
       </div>
-    </nav>
+    </header>
   );
 }
