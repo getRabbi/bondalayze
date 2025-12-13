@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { createSupabaseClient } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
 import {
   LineChart,
@@ -14,9 +13,8 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
-import { supabaseBrowser } from "@/lib/supabase/browser";
-
-
+// ✅ IMPORTANT: Use SAME client everywhere (login/signup/profile এর মতো)
+import { createClient } from "@/lib/supabaseClient";
 
 type ExtraAnalysis = {
   emotional_tone:
@@ -42,10 +40,15 @@ type AnalysisResult = {
   extra?: ExtraAnalysis | null;
 };
 
+type AnalyzeApiResponse = AnalysisResult & {
+  extracted_text?: string;
+  used_text?: string; // ✅ what we store + show as original
+};
+
 type SavedAnalysis = {
   id: string;
   created_at: string;
-  input_text: string;
+  input_text: string; // ✅ this will be used_text (typed + extracted)
   result: AnalysisResult;
 };
 
@@ -66,24 +69,12 @@ type Space = {
 
 type HistoryFilter = "all" | "7" | "30";
 
-// ---- AI API call (real OpenAI via /api/analyze) ----
-async function callAiAnalysis(input: string, plan: Plan): Promise<AnalysisResult> {
-  const res = await fetch("/api/analyze", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text: input, plan }),
-  });
+type Shot = {
+  id: string;
+  name: string;
+  dataUrl: string; // compressed data url
+};
 
-  if (!res.ok) {
-    console.error("AI API error:", await res.text());
-    throw new Error("AI API error");
-  }
-
-  const data = (await res.json()) as AnalysisResult;
-  return data;
-}
-
-// breakup risk badge styles
 function getRiskBadgeClasses(risk?: string) {
   switch (risk) {
     case "low":
@@ -97,8 +88,71 @@ function getRiskBadgeClasses(risk?: string) {
   }
 }
 
+// ---- AI API call ----
+async function callAiAnalysis(
+  input: string,
+  plan: Plan,
+  screenshots: Shot[]
+): Promise<AnalyzeApiResponse> {
+  const res = await fetch("/api/analyze", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      text: input,
+      plan,
+      images: screenshots.map((s) => ({ dataUrl: s.dataUrl })),
+    }),
+  });
+
+  if (!res.ok) {
+    const t = await res.text();
+    console.error("AI API error:", t);
+    throw new Error(t || "AI API error");
+  }
+
+  return (await res.json()) as AnalyzeApiResponse;
+}
+
+// ---- client-side image compression ----
+async function compressToDataUrl(
+  file: File,
+  maxW = 1400,
+  quality = 0.82
+): Promise<string> {
+  const imgUrl = URL.createObjectURL(file);
+
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const el = new Image();
+    el.onload = () => resolve(el);
+    el.onerror = reject;
+    el.src = imgUrl;
+  });
+
+  const w = img.width;
+  const h = img.height;
+
+  const scale = Math.min(1, maxW / w);
+  const tw = Math.round(w * scale);
+  const th = Math.round(h * scale);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = tw;
+  canvas.height = th;
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas not supported");
+
+  ctx.drawImage(img, 0, 0, tw, th);
+
+  URL.revokeObjectURL(imgUrl);
+
+  // Always JPEG for size (chat screenshots fine)
+  return canvas.toDataURL("image/jpeg", quality);
+}
+
 export default function AnalyzePage() {
-  const supabase = useMemo(() => supabaseBrowser(), []);
+  // ✅ Single consistent client
+  const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
 
   const [user, setUser] = useState<User | null>(null);
@@ -119,12 +173,15 @@ export default function AnalyzePage() {
   const [input, setInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  const [shots, setShots] = useState<Shot[]>([]);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+
   const [history, setHistory] = useState<SavedAnalysis[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [historyFilter, setHistoryFilter] = useState<HistoryFilter>("all");
 
-  // ✅ Single auth loader + auth state watcher (stops “Checking session…” stuck)
+  // ✅ auth loader + watcher
   useEffect(() => {
     let cancelled = false;
 
@@ -133,7 +190,6 @@ export default function AnalyzePage() {
       try {
         const { data, error } = await supabase.auth.getUser();
         if (error) console.error("auth.getUser error:", error);
-
         if (cancelled) return;
 
         const u = data.user ?? null;
@@ -172,7 +228,7 @@ export default function AnalyzePage() {
     };
   }, [supabase, router]);
 
-  // load plan + monthly usage
+  // ✅ plan + monthly usage
   useEffect(() => {
     let cancelled = false;
 
@@ -185,7 +241,6 @@ export default function AnalyzePage() {
       setPlanInfo((prev) => ({ ...prev, loading: true }));
 
       try {
-        // 1) plan from bondalayze_plans
         const { data: planRow, error: planError } = await supabase
           .from("bondalayze_plans")
           .select("plan")
@@ -197,7 +252,6 @@ export default function AnalyzePage() {
         const plan: Plan = planRow?.plan === "pro" ? "pro" : "free";
         const monthlyLimit: number | null = plan === "pro" ? null : 10;
 
-        // 2) count analyses this month
         const start = new Date();
         start.setDate(1);
         start.setHours(0, 0, 0, 0);
@@ -210,12 +264,14 @@ export default function AnalyzePage() {
 
         if (countError) console.error("usage count error:", countError);
 
+        const used = typeof count === "number" ? count : 0;
+
         if (cancelled) return;
 
         setPlanInfo({
           plan,
           monthlyLimit,
-          usedThisMonth: count ?? 0,
+          usedThisMonth: used,
           loading: false,
         });
       } catch (e) {
@@ -225,19 +281,17 @@ export default function AnalyzePage() {
     };
 
     fetchPlanAndUsage();
-
     return () => {
       cancelled = true;
     };
   }, [supabase, user]);
 
-  // load spaces
+  // ✅ load spaces (mandatory → auto-select OFF)
   useEffect(() => {
     let cancelled = false;
 
     const fetchSpaces = async () => {
       setLoadingSpaces(true);
-
       try {
         if (!user) {
           if (!cancelled) {
@@ -263,10 +317,9 @@ export default function AnalyzePage() {
           const list = (data ?? []) as Space[];
           setSpaces(list);
 
-          // keep selection if exists; otherwise pick first
           setSelectedSpaceId((prev) => {
             if (prev && list.some((s) => s.id === prev)) return prev;
-            return list.length ? list[0].id : null;
+            return null; // ✅ no auto pick
           });
         }
       } catch (e) {
@@ -281,13 +334,12 @@ export default function AnalyzePage() {
     };
 
     fetchSpaces();
-
     return () => {
       cancelled = true;
     };
   }, [supabase, user]);
 
-  // load analysis history for selected space
+  // ✅ load history for selected space
   useEffect(() => {
     let cancelled = false;
 
@@ -336,8 +388,6 @@ export default function AnalyzePage() {
           })) ?? [];
 
         setHistory(mapped);
-
-        // if selectedId missing, select first
         setSelectedId((prev) => {
           if (prev && mapped.some((m) => m.id === prev)) return prev;
           return mapped.length ? mapped[0].id : null;
@@ -354,7 +404,6 @@ export default function AnalyzePage() {
     };
 
     fetchHistory();
-
     return () => {
       cancelled = true;
     };
@@ -377,45 +426,104 @@ export default function AnalyzePage() {
     filteredHistory[0] ??
     null;
 
-  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!input.trim() || submitting) return;
+  const maxShots = planInfo.plan === "pro" ? 3 : 2;
 
-    if (!selectedSpaceId) {
-      alert("Create/select a space first.");
+  const canSubmit =
+    !!selectedSpaceId &&
+    (input.trim().length > 0 || shots.length > 0) &&
+    !submitting;
+
+  const onPickShots = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+
+    const incoming = Array.from(files);
+
+    const remaining = Math.max(0, maxShots - shots.length);
+    if (remaining <= 0) {
+      alert(`Max ${maxShots} screenshots allowed for this plan.`);
+      if (fileRef.current) fileRef.current.value = "";
       return;
     }
 
-    // free vs pro limit check
+    const toAdd = incoming.slice(0, remaining);
+
+    try {
+      const compressed = await Promise.all(
+        toAdd.map(async (f) => {
+          const dataUrl = await compressToDataUrl(f, 1400, 0.82);
+          return {
+            id: crypto.randomUUID(),
+            name: f.name,
+            dataUrl,
+          } as Shot;
+        })
+      );
+
+      setShots((prev) => [...prev, ...compressed]);
+    } catch (e) {
+      console.error(e);
+      alert("Could not process screenshots. Try smaller images.");
+    } finally {
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  const removeShot = (id: string) => {
+    setShots((prev) => prev.filter((s) => s.id !== id));
+  };
+
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!canSubmit) return;
+
+    if (!selectedSpaceId) {
+      alert("Select a space first.");
+      return;
+    }
+
+    // ✅ monthly quota check (free=10)
     if (
       !planInfo.loading &&
       planInfo.monthlyLimit !== null &&
       planInfo.usedThisMonth >= planInfo.monthlyLimit
     ) {
-      alert(
-        "Free plan limit reached (10 analyses this month). Upgrade to Pro for unlimited analyses."
-      );
+      alert("Free plan limit reached (10 analyses this month).");
       return;
     }
 
     setSubmitting(true);
+
     try {
       if (!user) {
-        alert("Please log in with Supabase auth first.");
+        alert("Please log in first.");
         router.replace("/login");
         return;
       }
 
-      // ---- REAL AI ANALYSIS CALL ----
-      const result = await callAiAnalysis(input.trim(), planInfo.plan);
+      const apiRes = await callAiAnalysis(input.trim(), planInfo.plan, shots);
 
-      // save to Supabase table
+      const usedText =
+        (apiRes.used_text && apiRes.used_text.trim()) ||
+        [input.trim(), apiRes.extracted_text?.trim()].filter(Boolean).join("\n\n") ||
+        input.trim() ||
+        "(extracted from screenshots)";
+
+      const result: AnalysisResult = {
+        score: apiRes.score,
+        summary: apiRes.summary,
+        you_effort: apiRes.you_effort,
+        them_effort: apiRes.them_effort,
+        greens: apiRes.greens ?? [],
+        reds: apiRes.reds ?? [],
+        extra: apiRes.extra ?? null,
+      };
+
       const { data, error } = await supabase
         .from("conversation_analyses")
         .insert({
           user_id: user.id,
           space_id: selectedSpaceId,
-          input_text: input.trim(),
+          input_text: usedText,
           score: result.score,
           summary: result.summary,
           you_effort: result.you_effort,
@@ -450,9 +558,12 @@ export default function AnalyzePage() {
 
       setHistory((prev) => [newItem, ...prev]);
       setSelectedId(newItem.id);
-      setInput("");
 
-      // local usage increment
+      // ✅ clear after submit
+      setInput("");
+      setShots([]);
+
+      // ✅ local usage increment (free quota)
       setPlanInfo((prev) => ({
         ...prev,
         usedThisMonth: prev.usedThisMonth + 1,
@@ -489,6 +600,8 @@ export default function AnalyzePage() {
       const next = filteredHistory.find((h) => h.id !== id)?.id ?? null;
       return next;
     });
+
+    // (Optional) usage decrement না করাই ভাল (quota counted on create)
   };
 
   const handleClearAll = async () => {
@@ -496,7 +609,6 @@ export default function AnalyzePage() {
 
     const ok = confirm("Delete ALL analyses in this space?");
     if (!ok) return;
-
     if (!user) return;
 
     const { error } = await supabase
@@ -513,7 +625,6 @@ export default function AnalyzePage() {
 
     setHistory([]);
     setSelectedId(null);
-    setPlanInfo((prev) => ({ ...prev, usedThisMonth: prev.usedThisMonth }));
   };
 
   const handleCreateSpace = async () => {
@@ -531,10 +642,7 @@ export default function AnalyzePage() {
 
     const { data, error } = await supabase
       .from("conversation_spaces")
-      .insert({
-        user_id: user.id,
-        name,
-      })
+      .insert({ user_id: user.id, name })
       .select()
       .single();
 
@@ -551,7 +659,7 @@ export default function AnalyzePage() {
     };
 
     setSpaces((prev) => [...prev, newSpace]);
-    setSelectedSpaceId(newSpace.id);
+    setSelectedSpaceId(newSpace.id); // ✅ created → select it
   };
 
   const handleExportJSON = () => {
@@ -592,7 +700,6 @@ export default function AnalyzePage() {
     URL.revokeObjectURL(url);
   };
 
-  // trend chart data (score over time)
   const trendData = useMemo(
     () =>
       filteredHistory
@@ -609,9 +716,15 @@ export default function AnalyzePage() {
     [filteredHistory]
   );
 
+  const placeholderExample = `Example:
+You: Can we talk about yesterday?
+Them: I’m tired, not now.
+You: I felt ignored. I want to understand.
+Them: You always overthink…`;
+
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-slate-950 text-slate-50">
-      {/* LEFT: input & header */}
+      {/* LEFT */}
       <div className="w-full md:w-1/2 border-b md:border-b-0 md:border-r border-slate-800 p-4 md:p-6 space-y-4">
         <div className="flex items-center justify-between gap-2">
           <div>
@@ -620,7 +733,7 @@ export default function AnalyzePage() {
               <span className="ml-2 text-xs text-sky-400">Bondalayze</span>
             </h1>
             <p className="mt-1 text-xs text-slate-400">
-              Paste your chat, get a gentle health check.
+              Paste your chat or upload screenshots — get a gentle health check.
             </p>
           </div>
 
@@ -631,11 +744,12 @@ export default function AnalyzePage() {
               <>
                 <div className="flex justify-end mb-1">
                   <span
-                    className={`rounded-full px-2 py-[2px] text-[10px] font-semibold uppercase tracking-wide ${
-                      planInfo.plan === "pro"
+                    className={
+                      "rounded-full px-2 py-[2px] text-[10px] font-semibold uppercase tracking-wide " +
+                      (planInfo.plan === "pro"
                         ? "bg-gradient-to-r from-indigo-500 to-emerald-500 text-white"
-                        : "bg-slate-700 text-slate-100"
-                    }`}
+                        : "bg-slate-700 text-slate-100")
+                    }
                   >
                     {planInfo.plan === "pro" ? "Pro plan" : "Free plan"}
                   </span>
@@ -645,27 +759,23 @@ export default function AnalyzePage() {
                   <div className="mt-1 text-[11px] text-slate-400">
                     {planInfo.monthlyLimit === null ? (
                       <>
-                        {planInfo.usedThisMonth} analyses this month ·
-                        unlimited plan
+                        {planInfo.usedThisMonth} analyses this month · unlimited
                       </>
                     ) : (
                       <>
-                        {planInfo.usedThisMonth}/{planInfo.monthlyLimit} analyses
-                        this month
+                        {planInfo.usedThisMonth}/{planInfo.monthlyLimit} analyses this month
                       </>
                     )}
                   </div>
                 )}
               </>
             ) : (
-              <span className="text-rose-400">
-                Not signed in – go to login page first.
-              </span>
+              <span className="text-rose-400">Not signed in.</span>
             )}
           </div>
         </div>
 
-        {/* Spaces selector */}
+        {/* Spaces selector (mandatory) */}
         <div className="space-y-1">
           <div className="flex items-center justify-between">
             <span className="text-xs text-slate-400">Current space</span>
@@ -682,10 +792,13 @@ export default function AnalyzePage() {
             <div className="text-xs text-slate-500">Loading spaces…</div>
           ) : spaces.length ? (
             <select
-              className="w-full rounded-lg bg-slate-900 border border-slate-700 px-2 py-1 text-xs"
+              className="w-full rounded-lg bg-slate-900 border border-slate-700 px-2 py-2 text-xs"
               value={selectedSpaceId ?? ""}
               onChange={(e) => setSelectedSpaceId(e.target.value || null)}
             >
+              <option value="" disabled>
+                Select a space…
+              </option>
               {spaces.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
@@ -701,23 +814,77 @@ export default function AnalyzePage() {
               Create your first space (e.g., “Partner”)
             </button>
           )}
+
+          {!selectedSpaceId && !loadingSpaces && spaces.length > 0 && (
+            <p className="text-[11px] text-amber-300">
+              Space select না করলে Analyze হবে না।
+            </p>
+          )}
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-3">
           <label className="block text-sm text-slate-300">
-            Paste conversation text:
+            Paste conversation text (optional if you upload screenshots):
           </label>
+
           <textarea
             className="w-full h-48 rounded-xl bg-slate-900 border border-slate-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
-            placeholder="Paste chat / messages here..."
+            placeholder={placeholderExample}
             value={input}
             onChange={(e) => setInput(e.target.value)}
           />
 
+          {/* Screenshot uploader */}
+          <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="text-xs text-slate-300">
+                Screenshots (optional) — max <b>{maxShots}</b> per analyze
+              </div>
+
+              <label className="cursor-pointer text-[11px] rounded-full border border-slate-700 px-3 py-[4px] hover:bg-slate-900">
+                + Add screenshots
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => onPickShots(e.target.files)}
+                />
+              </label>
+            </div>
+
+            {shots.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {shots.map((s) => (
+                  <div
+                    key={s.id}
+                    className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-950/60 px-2 py-1"
+                  >
+                    <span className="text-[11px] text-slate-300 line-clamp-1 max-w-[180px]">
+                      {s.name}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => removeShot(s.id)}
+                      className="text-[11px] text-rose-300 hover:underline"
+                    >
+                      remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-[11px] text-slate-500">
+                Tip: WhatsApp/Instagram থেকে copy করা কঠিন হলে screenshot দিলেও হবে।
+              </div>
+            )}
+          </div>
+
           <div className="flex items-center gap-3">
             <button
               type="submit"
-              disabled={submitting || !input.trim() || !selectedSpaceId}
+              disabled={!canSubmit}
               className="px-4 py-2 rounded-xl bg-sky-500 disabled:bg-slate-700 text-sm font-medium hover:bg-sky-400 transition"
             >
               {submitting ? "Analyzing…" : "Analyze & Save"}
@@ -735,13 +902,12 @@ export default function AnalyzePage() {
         </form>
 
         <p className="text-xs text-slate-400">
-          🔐 Data per-user save hocche <code>conversation_analyses</code> table-e.
-          Plan info <code>bondalayze_plans</code> & spaces{" "}
-          <code>conversation_spaces</code> table-e.
+          🔐 Data per-user save হচ্ছে <code>conversation_analyses</code> table-এ।
+          Plan info <code>bondalayze_plans</code> & spaces <code>conversation_spaces</code> table-এ।
         </p>
       </div>
 
-      {/* RIGHT: history + details */}
+      {/* RIGHT */}
       <div className="w-full md:w-1/2 flex flex-col p-4 md:p-6 gap-4">
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-lg font-semibold">History</h2>
@@ -766,7 +932,7 @@ export default function AnalyzePage() {
               ))}
             </div>
 
-            {planInfo.plan === "pro" && filteredHistory.length > 0 && (
+            {filteredHistory.length > 0 && (
               <div className="flex items-center gap-2">
                 <button
                   type="button"
@@ -792,12 +958,7 @@ export default function AnalyzePage() {
             <div className="text-xs text-slate-400 mb-1">
               Relationship health trend
             </div>
-            <div
-              className={
-                "h-40 transition " +
-                (planInfo.plan === "free" ? "blur-sm pointer-events-none" : "")
-              }
-            >
+            <div className="h-40">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={trendData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
@@ -814,31 +975,16 @@ export default function AnalyzePage() {
                 </LineChart>
               </ResponsiveContainer>
             </div>
-
-            {planInfo.plan === "free" && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/85">
-                <div className="text-xs font-semibold text-slate-100 mb-1">
-                  Pro feature
-                </div>
-                <p className="text-[11px] text-slate-300 mb-2 text-center px-4">
-                  See your relationship score trend over time with Bondalayze Pro.
-                </p>
-                <a
-                  href="/pricing"
-                  className="text-[11px] rounded-full border border-indigo-500 px-3 py-[4px] text-indigo-200 hover:bg-indigo-500 hover:text-white"
-                >
-                  Unlock with Pro
-                </a>
-              </div>
-            )}
           </div>
         )}
 
         {loadingHistory ? (
           <div className="text-sm text-slate-400">Loading history…</div>
+        ) : !selectedSpaceId ? (
+          <div className="text-sm text-slate-500">Select a space to see history.</div>
         ) : !history.length ? (
           <div className="text-sm text-slate-500">
-            No saved analyses yet. Choose a space, paste a conversation and click{" "}
+            No saved analyses yet. Paste/upload and click{" "}
             <span className="text-sky-400">Analyze &amp; Save</span>.
           </div>
         ) : !filteredHistory.length ? (
@@ -978,97 +1124,67 @@ export default function AnalyzePage() {
                   </div>
 
                   {selectedItem.result.extra && (
-                    <div className="relative mt-2">
-                      <div
-                        className={
-                          "flex flex-col gap-3 text-xs transition " +
-                          (planInfo.plan === "free"
-                            ? "blur-sm pointer-events-none"
-                            : "")
-                        }
-                      >
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="border border-slate-800 rounded-xl p-2">
-                            <div className="text-[11px] text-slate-400 mb-1">
-                              Emotional tone
-                            </div>
-                            <div className="text-sm font-semibold">
-                              {(
-                                selectedItem.result.extra?.emotional_tone ?? "mixed"
-                              ).replace("_", " ")}
-                            </div>
-                          </div>
-                          <div className="border border-slate-800 rounded-xl p-2">
-                            <div className="text-[11px] text-slate-400 mb-1">
-                              Breakup risk
-                            </div>
-                            <div className="text-sm font-semibold">
-                              {selectedItem.result.extra?.breakup_risk ?? "medium"}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="border border-slate-800 rounded-xl p-2">
-                            <div className="text-[11px] text-slate-400 mb-1">
-                              Your attachment style
-                            </div>
-                            <div className="text-sm">
-                              {selectedItem.result.extra?.attachment_you ??
-                                "mixed / unclear"}
-                            </div>
-                          </div>
-                          <div className="border border-slate-800 rounded-xl p-2">
-                            <div className="text-[11px] text-slate-400 mb-1">
-                              Their attachment style
-                            </div>
-                            <div className="text-sm">
-                              {selectedItem.result.extra?.attachment_them ??
-                                "mixed / unclear"}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="border border-slate-800 rounded-xl p-3">
+                    <div className="mt-2 flex flex-col gap-3 text-xs">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="border border-slate-800 rounded-xl p-2">
                           <div className="text-[11px] text-slate-400 mb-1">
-                            Conflict pattern
+                            Emotional tone
                           </div>
-                          <p className="text-sm text-slate-100">
-                            {selectedItem.result.extra?.conflict_pattern ??
-                              "The conflict pattern was not clearly described."}
-                          </p>
+                          <div className="text-sm font-semibold">
+                            {(selectedItem.result.extra.emotional_tone ?? "mixed").replace("_", " ")}
+                          </div>
                         </div>
-
-                        {selectedItem.result.extra.recommendations?.length ? (
-                          <div className="border border-slate-800 rounded-xl p-3">
-                            <div className="text-[11px] text-slate-400 mb-1">
-                              Suggested next steps
-                            </div>
-                            <ul className="list-disc list-inside space-y-1 text-[13px] text-slate-100">
-                              {selectedItem.result.extra.recommendations.map((r, idx) => (
-                                <li key={idx}>{r}</li>
-                              ))}
-                            </ul>
+                        <div className="border border-slate-800 rounded-xl p-2">
+                          <div className="text-[11px] text-slate-400 mb-1">
+                            Breakup risk
                           </div>
-                        ) : null}
+                          <div className="text-sm font-semibold">
+                            {selectedItem.result.extra.breakup_risk ?? "medium"}
+                          </div>
+                        </div>
                       </div>
 
-                      {planInfo.plan === "free" && (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/85 rounded-xl">
-                          <div className="text-xs font-semibold text-slate-100 mb-1">
-                            Pro-only deep insights
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="border border-slate-800 rounded-xl p-2">
+                          <div className="text-[11px] text-slate-400 mb-1">
+                            Your attachment style
                           </div>
-                          <p className="text-[11px] text-slate-300 mb-2 text-center px-4">
-                            See emotional tone, attachment styles & concrete next steps with Bondalayze Pro.
-                          </p>
-                          <a
-                            href="/pricing"
-                            className="text-[11px] rounded-full border border-indigo-500 px-3 py-[4px] text-indigo-200 hover:bg-indigo-500 hover:text-white"
-                          >
-                            Unlock with Pro
-                          </a>
+                          <div className="text-sm">
+                            {selectedItem.result.extra.attachment_you ?? "mixed / unclear"}
+                          </div>
                         </div>
-                      )}
+                        <div className="border border-slate-800 rounded-xl p-2">
+                          <div className="text-[11px] text-slate-400 mb-1">
+                            Their attachment style
+                          </div>
+                          <div className="text-sm">
+                            {selectedItem.result.extra.attachment_them ?? "mixed / unclear"}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="border border-slate-800 rounded-xl p-3">
+                        <div className="text-[11px] text-slate-400 mb-1">
+                          Conflict pattern
+                        </div>
+                        <p className="text-sm text-slate-100">
+                          {selectedItem.result.extra.conflict_pattern ??
+                            "The conflict pattern was not clearly described."}
+                        </p>
+                      </div>
+
+                      {selectedItem.result.extra.recommendations?.length ? (
+                        <div className="border border-slate-800 rounded-xl p-3">
+                          <div className="text-[11px] text-slate-400 mb-1">
+                            Suggested next steps
+                          </div>
+                          <ul className="list-disc list-inside space-y-1 text-[13px] text-slate-100">
+                            {selectedItem.result.extra.recommendations.map((r, idx) => (
+                              <li key={idx}>{r}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
                     </div>
                   )}
 
