@@ -6,7 +6,6 @@ import { createClient } from "@supabase/supabase-js";
 import type { BlogCategory } from "@/lib/blog/posts";
 import { DEFAULT_COVER } from "@/lib/blog/posts";
 
-import TocClient, { type TocItem } from "./TocClient";
 import ShareBarClient from "./ShareBarClient";
 
 // remark / rehype
@@ -215,7 +214,7 @@ export default async function BlogDetail({
   const readTime = minutesRead(post.content);
   const date = (post.published_at ?? "").slice(0, 10);
 
-  const { html, toc } = await renderMarkdownWithToc(post.content);
+  const { html } = await renderMarkdownWithToc(post.content);
 
   // related posts (same category; exclude current)
   const { data: relRows } = await supabase
@@ -232,12 +231,6 @@ export default async function BlogDetail({
   const related = (relRows ?? []) as DbPost[];
   const nextUp = related?.[0];
   const moreLikeThis = related.slice(1, 7);
-
-  const tocClient: TocItem[] = toc.map((t) => ({
-    title: t.title,
-    id: t.id,
-    depth: t.depth,
-  }));
 
   return (
     <main className="bg-slate-950 text-slate-50">
@@ -271,24 +264,8 @@ export default async function BlogDetail({
           <ShareBarClient title={post.title} />
         </div>
 
-        {/* 3-column modern layout */}
-        <div className="mt-8 grid gap-8 lg:grid-cols-[260px,minmax(0,1fr),320px]">
-          {/* LEFT: TOC */}
-          <aside className="hidden lg:block sticky top-28 h-fit self-start">
-            {tocClient.length ? (
-              <TocClient toc={tocClient} topOffset={112} />
-            ) : (
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/55 p-4">
-                <div className="text-xs font-semibold text-slate-300">
-                  Contents
-                </div>
-                <div className="mt-3 text-[12px] text-slate-400">
-                  No sections found.
-                </div>
-              </div>
-            )}
-          </aside>
-
+        {/* 3-column modern layout (TOC removed) */}
+        <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr),320px]">
           {/* CENTER: content */}
           <section className="min-w-0">
             <div className="mx-auto w-full max-w-[780px]">
@@ -337,18 +314,10 @@ export default async function BlogDetail({
                   "prose-headings:text-slate-50 prose-strong:text-slate-50",
                   "prose-a:text-sky-200 hover:prose-a:text-sky-100",
                   "prose-code:text-slate-100",
-                  // better spacing
                   "prose-h2:scroll-mt-28 prose-h3:scroll-mt-28"
                 )}
                 dangerouslySetInnerHTML={{ __html: html }}
               />
-
-              {/* Mobile TOC */}
-              {tocClient.length ? (
-                <div className="mt-10 lg:hidden">
-                  <TocClient toc={tocClient} topOffset={112} />
-                </div>
-              ) : null}
             </div>
           </section>
 
