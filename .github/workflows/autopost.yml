@@ -1,0 +1,35 @@
+name: Bondalayze Auto Blog Post
+
+on:
+  schedule:
+    - cron: "0 */6 * * *" # প্রতি 6 ঘন্টা
+  workflow_dispatch:
+
+jobs:
+  autopost:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Run autopost
+        run: npm run autopost
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
+
+          # Supabase (fallback works with either SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL)
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

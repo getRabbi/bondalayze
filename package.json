@@ -6,12 +6,14 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "autopost": "tsx src/app/autopost/run.ts"
   },
   "dependencies": {
     "@supabase/auth-helpers-nextjs": "^0.15.0",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.87.1",
+    "dotenv": "^17.2.3",
     "github-slugger": "^2.0.0",
     "next": "16.0.7",
     "openai": "^6.10.0",
@@ -37,6 +39,7 @@
     "eslint-config-next": "16.0.7",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.18",
+    "tsx": "^4.21.0",
     "typescript": "^5"
   }
 }
