@@ -1,3 +1,6 @@
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
@@ -18,7 +21,7 @@ import { visit } from "unist-util-visit";
 import GithubSlugger from "github-slugger";
 
 // SEO + fast load (ISR)
-export const revalidate = 60;
+// export const revalidate = 60;
 
 /* ---------- types ---------- */
 type DbPost = {

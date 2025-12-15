@@ -147,6 +147,9 @@
 // src/app/blog/page.tsx
 // src/app/blog/page.tsx
 // src/app/blog/page.tsx
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 import { createClient } from "@supabase/supabase-js";
 import BlogClient, { type UiPost } from "./BlogClient";
 import type { BlogPost, BlogCategory } from "@/lib/blog/posts";
