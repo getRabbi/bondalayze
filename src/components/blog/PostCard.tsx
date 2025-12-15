@@ -1,11 +1,11 @@
-// src/components/blog/PostCard.tsx
 import Link from "next/link";
-import Image from "next/image";
 import type { BlogPost } from "@/lib/blog/posts";
 import { DEFAULT_COVER } from "@/lib/blog/posts";
 
 export default function PostCard({ post }: { post: BlogPost }) {
-  const cover = post.image?.startsWith("/") ? post.image : DEFAULT_COVER;
+  const img = (post as any).image || (post as any).cover_image_url;
+  const cover =
+    typeof img === "string" && img.trim().length > 0 ? img : DEFAULT_COVER;
 
   return (
     <Link
@@ -13,12 +13,12 @@ export default function PostCard({ post }: { post: BlogPost }) {
       className="group block overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/40 hover:bg-slate-900/60 transition"
     >
       <div className="relative h-40 w-full">
-        <Image
+        {/* ✅ FIX: Next/Image -> img (prevents private ip block) */}
+        <img
           src={cover}
           alt={post.title}
-          fill
-          className="object-cover"
-          sizes="(max-width: 768px) 100vw, 420px"
+          className="h-full w-full object-cover"
+          loading="lazy"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950/75 via-slate-950/10 to-transparent" />
       </div>

@@ -1,5 +1,4 @@
 import Link from "next/link";
-import Image from "next/image";
 import { notFound } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 
@@ -58,7 +57,6 @@ async function renderMarkdownWithToc(md: string): Promise<{
   html: string;
   toc: TocRow[];
 }> {
-  // 1) Parse + extract toc (H2/H3)
   const toc: TocRow[] = [];
   const parseTree = unified().use(remarkParse).use(remarkGfm).parse(md);
 
@@ -78,7 +76,6 @@ async function renderMarkdownWithToc(md: string): Promise<{
     toc.push({ title: text, id, depth });
   });
 
-  // 2) Inject same ids into headings for HTML
   const addIds = () => (tree: any) => {
     const s = new GithubSlugger();
     visit(tree, "heading", (node: any) => {
@@ -140,6 +137,7 @@ function SmallRelatedCard({ p }: { p: DbPost }) {
 
 function NextUpCard({ p }: { p: DbPost }) {
   const cover = p.cover_image_url || DEFAULT_COVER;
+
   return (
     <Link
       href={`/blog/${p.slug}`}
@@ -149,12 +147,12 @@ function NextUpCard({ p }: { p: DbPost }) {
       )}
     >
       <div className="relative h-36 w-full">
-        <Image
+        {/* ✅ FIX: Next/Image -> img */}
+        <img
           src={cover}
           alt={p.title}
-          fill
-          className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-          sizes="(max-width: 1024px) 100vw, 320px"
+          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+          loading="lazy"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/20 to-transparent" />
       </div>
@@ -216,7 +214,6 @@ export default async function BlogDetail({
 
   const { html } = await renderMarkdownWithToc(post.content);
 
-  // related posts (same category; exclude current)
   const { data: relRows } = await supabase
     .from("blog_posts")
     .select(
@@ -237,7 +234,6 @@ export default async function BlogDetail({
       <div id="top" />
 
       <article className="mx-auto max-w-[1280px] px-4 py-10 md:px-6 md:py-12">
-        {/* Top row */}
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between gap-3">
             <Link
@@ -260,16 +256,12 @@ export default async function BlogDetail({
             </div>
           </div>
 
-          {/* Share bar */}
           <ShareBarClient title={post.title} />
         </div>
 
-        {/* 3-column modern layout (TOC removed) */}
         <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr),320px]">
-          {/* CENTER: content */}
           <section className="min-w-0">
             <div className="mx-auto w-full max-w-[780px]">
-              {/* Mobile meta */}
               <div className="md:hidden flex flex-wrap items-center gap-2 text-[12px] text-slate-300/90">
                 <span>{post.category}</span>
                 <span>•</span>
@@ -294,19 +286,17 @@ export default async function BlogDetail({
 
               <div className="relative mt-6 overflow-hidden rounded-3xl border border-slate-800 bg-slate-900/60">
                 <div className="relative h-56 w-full md:h-80">
-                  <Image
+                  {/* ✅ FIX: Next/Image -> img */}
+                  <img
                     src={cover}
                     alt={post.title}
-                    fill
-                    priority
-                    className="object-cover"
-                    sizes="(max-width: 768px) 100vw, 780px"
+                    className="h-full w-full object-cover"
+                    loading="eager"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-950/30 to-transparent" />
                 </div>
               </div>
 
-              {/* Markdown HTML */}
               <div
                 className={cn(
                   "prose prose-invert mt-8 max-w-none",
@@ -314,6 +304,9 @@ export default async function BlogDetail({
                   "prose-headings:text-slate-50 prose-strong:text-slate-50",
                   "prose-a:text-sky-200 hover:prose-a:text-sky-100",
                   "prose-code:text-slate-100",
+                  // ✅ better list spacing
+                  "prose-ul:my-4 prose-ol:my-4 prose-li:my-1",
+                  "prose-h2:mt-8 prose-h2:mb-3 prose-h3:mt-6 prose-h3:mb-2",
                   "prose-h2:scroll-mt-28 prose-h3:scroll-mt-28"
                 )}
                 dangerouslySetInnerHTML={{ __html: html }}
@@ -321,7 +314,6 @@ export default async function BlogDetail({
             </div>
           </section>
 
-          {/* RIGHT: related */}
           <aside className="hidden lg:block sticky top-28 h-fit self-start space-y-4">
             {nextUp ? (
               <div className="rounded-2xl border border-slate-800 bg-slate-900/55 p-4">
@@ -358,7 +350,6 @@ export default async function BlogDetail({
           </aside>
         </div>
 
-        {/* Mobile related */}
         {related.length ? (
           <div className="mt-12 lg:hidden">
             <div className="text-sm font-semibold text-slate-50">

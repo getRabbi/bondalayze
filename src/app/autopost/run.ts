@@ -2,6 +2,7 @@ import dotenv from "dotenv";
 dotenv.config({ path: ".env.local" });
 
 import { slugify } from "./lib/utils";
+import type { GeneratedPost } from "./lib/openai"; // ✅ only type add
 
 async function main() {
   console.log("🚀 Autopost started");
@@ -62,7 +63,7 @@ async function main() {
   }
 
   // Generate blog content
-  const post = await generatePost(idea);
+  const post: GeneratedPost = await generatePost(idea); // ✅ typed
 
   if (!isAdsenseSafe(post.content_md)) {
     throw new Error("❌ Content failed AdSense safety check");
@@ -71,7 +72,7 @@ async function main() {
   // AI Image (FAIL-SAFE) — ✅ no null, only string|undefined
   try {
     const imageUrl = await generateAndUploadImage(post.title, category);
-    post.cover_image_url = imageUrl;
+    post.cover_image_url = imageUrl; // ✅ now TS ok
     console.log("🖼️ Image uploaded:", imageUrl);
   } catch (e: any) {
     post.cover_image_url = process.env.BLOG_DEFAULT_COVER_URL || undefined;

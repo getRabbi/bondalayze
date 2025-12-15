@@ -1,22 +1,21 @@
-// src/components/blog/FeaturedPost.tsx
 import Link from "next/link";
-import Image from "next/image";
 import type { BlogPost } from "@/lib/blog/posts";
 import { DEFAULT_COVER } from "@/lib/blog/posts";
 
 export default function FeaturedPost({ post }: { post: BlogPost }) {
-  const cover = post.image?.startsWith("/") ? post.image : DEFAULT_COVER;
+  const img = (post as any).image || (post as any).cover_image_url;
+  const cover =
+    typeof img === "string" && img.trim().length > 0 ? img : DEFAULT_COVER;
 
   return (
     <div className="overflow-hidden rounded-3xl border border-slate-800 bg-slate-900/40">
       <div className="relative h-52 w-full md:h-56">
-        <Image
+        {/* ✅ FIX: Next/Image -> img */}
+        <img
           src={cover}
           alt={post.title}
-          fill
-          className="object-cover"
-          sizes="(max-width: 768px) 100vw, 980px"
-          priority
+          className="h-full w-full object-cover"
+          loading="eager"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/20 to-transparent" />
       </div>
@@ -39,9 +38,7 @@ export default function FeaturedPost({ post }: { post: BlogPost }) {
           {post.title}
         </h2>
 
-        <p className="mt-2 text-sm text-slate-300">
-          {post.excerpt}
-        </p>
+        <p className="mt-2 text-sm text-slate-300">{post.excerpt}</p>
 
         <div className="mt-4 text-[11px] text-slate-400">
           {post.date} · {post.readTime}
