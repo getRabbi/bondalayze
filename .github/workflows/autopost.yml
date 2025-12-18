@@ -33,3 +33,8 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      - name: Trigger social share (FB + IG + Pinterest)
+        run: |
+          curl -fsSL "${{ secrets.SITE_URL }}/api/autopost/social?key=${{ secrets.CRON_SECRET }}"
+
