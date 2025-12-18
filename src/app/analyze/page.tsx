@@ -977,7 +977,7 @@ Them: You always overthink…`;
             </div>
           </div>
         )}
-
+{/* kichu jinish change kora hoice git hub tmi bujch? */}
         {loadingHistory ? (
           <div className="text-sm text-slate-400">Loading history…</div>
         ) : !selectedSpaceId ? (

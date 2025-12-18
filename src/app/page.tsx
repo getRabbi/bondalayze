@@ -240,7 +240,7 @@ export default function HomePage() {
           </div>
         </div>
       </section>
-
+{/* kichu jinish change kora hoice git hub tmi bujch? */}
       {/* BLOG PREVIEW */}
       <section id="latest" className="border-b border-slate-800/60">
         <div className="mx-auto max-w-5xl px-4 py-16 md:px-6 md:py-20">
