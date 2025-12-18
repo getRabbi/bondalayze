@@ -81,7 +81,7 @@ export default function HomePage() {
               <div className="flex items-center justify-between text-xs text-slate-400">
                 <span>Sample analysis</span>
                 <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[10px] text-emerald-300">
-                  Demo preview
+                  Discover Now
                 </span>
               </div>
 
@@ -326,7 +326,7 @@ export default function HomePage() {
               </p>
 
               <div className="mt-4 text-3xl font-semibold">
-                $9<span className="text-sm text-slate-400"> /month*</span>
+                $9<span className="text-sm text-slate-400"> /Life-time*</span>
               </div>
 
               <p className="mt-2 text-[11px] text-slate-400">Cancel anytime · No long-term commitment</p>

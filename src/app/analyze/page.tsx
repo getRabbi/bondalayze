@@ -817,7 +817,7 @@ Them: You always overthink…`;
 
           {!selectedSpaceId && !loadingSpaces && spaces.length > 0 && (
             <p className="text-[11px] text-amber-300">
-              Space select না করলে Analyze হবে না।
+              Please create space before Analyze
             </p>
           )}
         </div>
@@ -876,7 +876,7 @@ Them: You always overthink…`;
               </div>
             ) : (
               <div className="text-[11px] text-slate-500">
-                Tip: WhatsApp/Instagram থেকে copy করা কঠিন হলে screenshot দিলেও হবে।
+                Tip: You can use WhatsApp/Instagram screenshot here. 
               </div>
             )}
           </div>
@@ -902,8 +902,8 @@ Them: You always overthink…`;
         </form>
 
         <p className="text-xs text-slate-400">
-          🔐 Data per-user save হচ্ছে <code>conversation_analyses</code> table-এ।
-          Plan info <code>bondalayze_plans</code> & spaces <code>conversation_spaces</code> table-এ।
+          🔐 Saving Data per-user <code>conversation_analyses</code> On table
+          Plan info <code>bondalayze_plans</code> & spaces <code>conversation_spaces</code>
         </p>
       </div>
 
