@@ -2,7 +2,7 @@ import dotenv from "dotenv";
 dotenv.config({ path: ".env.local" });
 
 import { slugify } from "./lib/utils";
-import type { GeneratedPost } from "./lib/openai"; // ✅ only type add
+import type { GeneratedPost } from "./lib/openai"; // type-only import
 
 async function main() {
   console.log("🚀 Autopost started");
@@ -34,13 +34,12 @@ async function main() {
     return;
   }
 
-  // Time gap + category rotation
+  // Time gap
   const last = await getLastPublished();
 
   if (last?.published_at) {
     const diffHours =
-      (Date.now() - new Date(last.published_at).getTime()) /
-      (1000 * 60 * 60);
+      (Date.now() - new Date(last.published_at).getTime()) / (1000 * 60 * 60);
 
     console.log("⏱️ Hours since last post:", diffHours.toFixed(2));
 
@@ -50,9 +49,11 @@ async function main() {
     }
   }
 
+  // Category + idea
   const category = nextCategory(last?.category ?? null);
   const idea = await getTrendingIdea(category);
 
+  console.log("🏷️ Category:", category);
   console.log("🧠 Idea:", idea);
 
   // Pre-AI duplicate guard
@@ -63,23 +64,23 @@ async function main() {
   }
 
   // Generate blog content
-  const post: GeneratedPost = await generatePost(idea); // ✅ typed
+  const post: GeneratedPost = await generatePost(idea);
 
   if (!isAdsenseSafe(post.content_md)) {
     throw new Error("❌ Content failed AdSense safety check");
   }
 
-  // AI Image (FAIL-SAFE) — ✅ no null, only string|undefined
+  // AI Image (FAIL-SAFE)
   try {
     const imageUrl = await generateAndUploadImage(post.title, category);
-    post.cover_image_url = imageUrl; // ✅ now TS ok
-    console.log("🖼️ Image uploaded:", imageUrl);
+    post.cover_image_url = imageUrl;
+    console.log("🖼 Image uploaded:", imageUrl);
   } catch (e: any) {
     post.cover_image_url = process.env.BLOG_DEFAULT_COVER_URL || undefined;
     console.log(
-      "⚠️ Image generation skipped (org verify pending). Using fallback cover."
+      "⚠️ Image generation skipped. Using fallback cover (if configured)."
     );
-    console.log("Reason:", e?.message || e);
+    console.log("Reason:", e?.message ?? e);
   }
 
   // Post-AI duplicate guard
