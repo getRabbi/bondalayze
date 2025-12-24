@@ -25,20 +25,28 @@ async function fbGraph(
 }
 
 export async function postToFacebook(
-  fbPageId: string,
+  pageId: string,
   pageAccessToken: string,
   imageUrl: string,
-  message: string
+  caption: string
 ) {
-  // Upload photo to Page feed
-  const res = (await fbGraph(`${fbPageId}/photos`, pageAccessToken, {
-    url: imageUrl,
-    caption: message,
-  })) as FbPhotoResponse;
+  const url = new URL(`https://graph.facebook.com/v20.0/${pageId}/photos`);
+  url.searchParams.set("url", imageUrl);           // must be public direct image
+  url.searchParams.set("caption", caption);
+  url.searchParams.set("published", "true");
+  url.searchParams.set("access_token", pageAccessToken);
 
-  if (!res.id) throw new Error("Facebook: photo upload failed (no id)");
-  return res.id;
+  const resp = await fetch(url.toString(), { method: "POST" });
+  const json = await resp.json();
+
+  if (!resp.ok) {
+    throw new Error(`FB Graph error (${resp.status}): ${json?.error?.message || "Unknown"}`);
+  }
+
+  // ✅ FB photo upload returns { id: "....", post_id?: "...." }
+  return json; // json.id is the photo id
 }
+
 
 export async function postToInstagram(
   igBusinessId: string,
