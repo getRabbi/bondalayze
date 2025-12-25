@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { mustEnv } from "../../../autopost/lib/utils";
 import { postToFacebook, postToInstagram } from "../../../autopost/publishMeta";
-import { postToPinterest } from "../../../autopost/lib/publishPinterest";
+// ❌ REMOVE Pinterest API import
+// import { postToPinterest } from "../../../autopost/lib/publishPinterest";
 
 // ---------- Supabase ----------
 const SUPABASE_URL =
@@ -64,10 +65,7 @@ export async function GET(req: Request) {
       .limit(1)
       .single();
 
-    if (!post) {
-      throw new Error("No published post found");
-    }
-
+    if (!post) throw new Error("No published post found");
     if (!post.cover_image_url) {
       throw new Error("Post image missing (required for FB/IG/Pinterest)");
     }
@@ -99,21 +97,23 @@ export async function GET(req: Request) {
       )
     );
 
-    // ---------- Pinterest ----------
-    await shareIfNotDone(post.slug, "pinterest", () =>
-      postToPinterest(
-        mustEnv("PINTEREST_ACCESS_TOKEN"),
-        mustEnv("PINTEREST_BOARD_ID"),
-        post.title,
-        caption,
-        postUrl,
-        post.cover_image_url
-      )
-    );
+    // ---------- Pinterest (NO API / NO TOKEN) ----------
+    // ✅ Create a Pinterest share URL instead of calling Pinterest API
+    const pinterestShareUrl =
+      "https://www.pinterest.com/pin/create/button/?" +
+      new URLSearchParams({
+        url: postUrl,
+        media: post.cover_image_url,
+        description: caption,
+      }).toString();
+
+    // ✅ Still record as "posted" so it won't repeat (external_id = share url)
+    await shareIfNotDone(post.slug, "pinterest", async () => pinterestShareUrl);
 
     return NextResponse.json({
       ok: true,
       slug: post.slug,
+      pinterest_share: pinterestShareUrl, // ✅ return this link
     });
   } catch (e: any) {
     console.error("❌ social autopost failed:", e);
