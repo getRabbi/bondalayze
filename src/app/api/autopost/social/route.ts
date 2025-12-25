@@ -1,4 +1,3 @@
-// src/app/api/autopost/social/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { mustEnv } from "../../../autopost/lib/utils";
@@ -18,39 +17,40 @@ const supabase = createClient(
   mustEnv("SUPABASE_SERVICE_ROLE_KEY")
 );
 
-// ---------- helper: prevent double post (DB-backed) ----------
+// ---------- helper: prevent double post ----------
 async function shareIfNotDone(
   postId: string,
+  slug: string,
   platform: "facebook" | "instagram" | "pinterest",
+  postUrl: string,
   fn: () => Promise<string | void>
 ) {
-  // ✅ check if already posted
-  const { data, error } = await supabase
+  // ✅ check if already shared
+  const { data } = await supabase
     .from("social_posts")
     .select("id")
     .eq("post_id", postId)
     .eq("platform", platform)
     .maybeSingle();
 
-  if (error) throw error;
-
   if (data) {
-    console.log(`⏭️ Already shared on ${platform}: post_id=${postId}`);
+    console.log(`⏭️ Already shared on ${platform}:`, slug);
     return;
   }
 
-  // ✅ post now
   const externalId = await fn();
 
-  // ✅ insert log (and fail loudly if insert fails)
-  const { error: insErr } = await supabase.from("social_posts").insert({
+  // ✅ FIX: url column is NOT NULL in your DB
+  const { error } = await supabase.from("social_posts").insert({
     post_id: postId,
+    slug,
     platform,
+    url: postUrl, // 🔥 important
     status: "posted",
     external_id: externalId ?? null,
   });
 
-  if (insErr) throw insErr;
+  if (error) throw error;
 }
 
 // ---------- GET ----------
@@ -67,15 +67,13 @@ export async function GET(req: Request) {
     }
 
     // ---------- latest published post ----------
-    const { data: post, error: postErr } = await supabase
+    const { data: post } = await supabase
       .from("blog_posts")
       .select("id, slug, title, excerpt, cover_image_url")
       .eq("status", "published")
       .order("published_at", { ascending: false })
       .limit(1)
       .single();
-
-    if (postErr) throw postErr;
 
     if (!post) throw new Error("No published post found");
 
@@ -91,7 +89,7 @@ export async function GET(req: Request) {
     const fbToken = mustEnv("FB_PAGE_ACCESS_TOKEN");
 
     // ---------- Facebook ----------
-    await shareIfNotDone(post.id, "facebook", () =>
+    await shareIfNotDone(post.id, post.slug, "facebook", postUrl, () =>
       postToFacebook(
         mustEnv("FB_PAGE_ID"),
         fbToken,
@@ -101,7 +99,7 @@ export async function GET(req: Request) {
     );
 
     // ---------- Instagram ----------
-    await shareIfNotDone(post.id, "instagram", () =>
+    await shareIfNotDone(post.id, post.slug, "instagram", postUrl, () =>
       postToInstagram(
         mustEnv("IG_BUSINESS_ID"),
         fbToken,
@@ -110,25 +108,27 @@ export async function GET(req: Request) {
       )
     );
 
-    // ---------- Pinterest ----------
-    // ⚠️ Pinterest API approval না থাকলে এটা fail করবে।
-    // তবুও duplicate আটকাতে post_id+platform logging থাকবে।
-    await shareIfNotDone(post.id, "pinterest", () =>
-      postToPinterest(
-        mustEnv("PINTEREST_ACCESS_TOKEN"),
-        mustEnv("PINTEREST_BOARD_ID"),
-        post.title,
-        caption,
-        postUrl,
-        post.cover_image_url
-      )
-    );
+    // ---------- Pinterest (optional) ----------
+    // ✅ token / board না থাকলে Pinterest skip করবে (error না)
+    const PINTEREST_ACCESS_TOKEN = process.env.PINTEREST_ACCESS_TOKEN;
+    const PINTEREST_BOARD_ID = process.env.PINTEREST_BOARD_ID;
 
-    return NextResponse.json({
-      ok: true,
-      post_id: post.id,
-      slug: post.slug,
-    });
+    if (PINTEREST_ACCESS_TOKEN && PINTEREST_BOARD_ID) {
+      await shareIfNotDone(post.id, post.slug, "pinterest", postUrl, () =>
+        postToPinterest(
+          mustEnv("PINTEREST_ACCESS_TOKEN"),
+          mustEnv("PINTEREST_BOARD_ID"),
+          post.title,
+          caption,
+          postUrl,
+          post.cover_image_url
+        )
+      );
+    } else {
+      console.log("⏭️ Pinterest skipped (missing token/board id)");
+    }
+
+    return NextResponse.json({ ok: true, slug: post.slug });
   } catch (e: any) {
     console.error("❌ social autopost failed:", e);
     return NextResponse.json(
