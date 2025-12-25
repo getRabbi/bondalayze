@@ -17,15 +17,13 @@ const supabase = createClient(
   mustEnv("SUPABASE_SERVICE_ROLE_KEY")
 );
 
-// ---------- helper: prevent double post ----------
+// ---------- helper: prevent duplicate post ----------
 async function shareIfNotDone(
   postId: string,
-  slug: string,
   platform: "facebook" | "instagram" | "pinterest",
   postUrl: string,
   fn: () => Promise<string | void>
 ) {
-  // ✅ check if already shared
   const { data } = await supabase
     .from("social_posts")
     .select("id")
@@ -34,18 +32,16 @@ async function shareIfNotDone(
     .maybeSingle();
 
   if (data) {
-    console.log(`⏭️ Already shared on ${platform}:`, slug);
+    console.log(`⏭️ Already posted on ${platform}`);
     return;
   }
 
   const externalId = await fn();
 
-  // ✅ FIX: url column is NOT NULL in your DB
   const { error } = await supabase.from("social_posts").insert({
     post_id: postId,
-    slug,
     platform,
-    url: postUrl, // 🔥 important
+    url: postUrl, // ✅ NOT NULL column
     status: "posted",
     external_id: externalId ?? null,
   });
@@ -58,7 +54,7 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
 
-    // 🔐 cron security
+    // 🔐 security
     if (searchParams.get("key") !== mustEnv("CRON_SECRET")) {
       return NextResponse.json(
         { ok: false, error: "Unauthorized" },
@@ -76,10 +72,8 @@ export async function GET(req: Request) {
       .single();
 
     if (!post) throw new Error("No published post found");
-
-    if (!post.cover_image_url) {
-      throw new Error("Post image missing (required for FB/IG/Pinterest)");
-    }
+    if (!post.cover_image_url)
+      throw new Error("Post image missing (required)");
 
     const siteUrl = mustEnv("SITE_URL").replace(/\/$/, "");
     const postUrl = `${siteUrl}/blog/${post.slug}`;
@@ -89,7 +83,7 @@ export async function GET(req: Request) {
     const fbToken = mustEnv("FB_PAGE_ACCESS_TOKEN");
 
     // ---------- Facebook ----------
-    await shareIfNotDone(post.id, post.slug, "facebook", postUrl, () =>
+    await shareIfNotDone(post.id, "facebook", postUrl, () =>
       postToFacebook(
         mustEnv("FB_PAGE_ID"),
         fbToken,
@@ -99,7 +93,7 @@ export async function GET(req: Request) {
     );
 
     // ---------- Instagram ----------
-    await shareIfNotDone(post.id, post.slug, "instagram", postUrl, () =>
+    await shareIfNotDone(post.id, "instagram", postUrl, () =>
       postToInstagram(
         mustEnv("IG_BUSINESS_ID"),
         fbToken,
@@ -108,13 +102,12 @@ export async function GET(req: Request) {
       )
     );
 
-    // ---------- Pinterest (optional) ----------
-    // ✅ token / board না থাকলে Pinterest skip করবে (error না)
-    const PINTEREST_ACCESS_TOKEN = process.env.PINTEREST_ACCESS_TOKEN;
-    const PINTEREST_BOARD_ID = process.env.PINTEREST_BOARD_ID;
-
-    if (PINTEREST_ACCESS_TOKEN && PINTEREST_BOARD_ID) {
-      await shareIfNotDone(post.id, post.slug, "pinterest", postUrl, () =>
+    // ---------- Pinterest (optional / safe) ----------
+    if (
+      process.env.PINTEREST_ACCESS_TOKEN &&
+      process.env.PINTEREST_BOARD_ID
+    ) {
+      await shareIfNotDone(post.id, "pinterest", postUrl, () =>
         postToPinterest(
           mustEnv("PINTEREST_ACCESS_TOKEN"),
           mustEnv("PINTEREST_BOARD_ID"),
@@ -125,10 +118,10 @@ export async function GET(req: Request) {
         )
       );
     } else {
-      console.log("⏭️ Pinterest skipped (missing token/board id)");
+      console.log("⏭️ Pinterest skipped (no approval/token)");
     }
 
-    return NextResponse.json({ ok: true, slug: post.slug });
+    return NextResponse.json({ ok: true, postId: post.id });
   } catch (e: any) {
     console.error("❌ social autopost failed:", e);
     return NextResponse.json(
