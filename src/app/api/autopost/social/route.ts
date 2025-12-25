@@ -1,9 +1,9 @@
+// src/app/api/autopost/social/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { mustEnv } from "../../../autopost/lib/utils";
 import { postToFacebook, postToInstagram } from "../../../autopost/publishMeta";
-// ❌ REMOVE Pinterest API import
-// import { postToPinterest } from "../../../autopost/lib/publishPinterest";
+import { postToPinterest } from "../../../autopost/lib/publishPinterest";
 
 // ---------- Supabase ----------
 const SUPABASE_URL =
@@ -18,32 +18,39 @@ const supabase = createClient(
   mustEnv("SUPABASE_SERVICE_ROLE_KEY")
 );
 
-// ---------- helper: prevent double post ----------
+// ---------- helper: prevent double post (DB-backed) ----------
 async function shareIfNotDone(
-  slug: string,
+  postId: string,
   platform: "facebook" | "instagram" | "pinterest",
   fn: () => Promise<string | void>
 ) {
-  const { data } = await supabase
+  // ✅ check if already posted
+  const { data, error } = await supabase
     .from("social_posts")
     .select("id")
-    .eq("slug", slug)
+    .eq("post_id", postId)
     .eq("platform", platform)
     .maybeSingle();
 
+  if (error) throw error;
+
   if (data) {
-    console.log(`⏭️ Already shared on ${platform}:`, slug);
+    console.log(`⏭️ Already shared on ${platform}: post_id=${postId}`);
     return;
   }
 
+  // ✅ post now
   const externalId = await fn();
 
-  await supabase.from("social_posts").insert({
-    slug,
+  // ✅ insert log (and fail loudly if insert fails)
+  const { error: insErr } = await supabase.from("social_posts").insert({
+    post_id: postId,
     platform,
     status: "posted",
     external_id: externalId ?? null,
   });
+
+  if (insErr) throw insErr;
 }
 
 // ---------- GET ----------
@@ -53,11 +60,14 @@ export async function GET(req: Request) {
 
     // 🔐 cron security
     if (searchParams.get("key") !== mustEnv("CRON_SECRET")) {
-      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json(
+        { ok: false, error: "Unauthorized" },
+        { status: 401 }
+      );
     }
 
     // ---------- latest published post ----------
-    const { data: post } = await supabase
+    const { data: post, error: postErr } = await supabase
       .from("blog_posts")
       .select("id, slug, title, excerpt, cover_image_url")
       .eq("status", "published")
@@ -65,7 +75,10 @@ export async function GET(req: Request) {
       .limit(1)
       .single();
 
+    if (postErr) throw postErr;
+
     if (!post) throw new Error("No published post found");
+
     if (!post.cover_image_url) {
       throw new Error("Post image missing (required for FB/IG/Pinterest)");
     }
@@ -78,7 +91,7 @@ export async function GET(req: Request) {
     const fbToken = mustEnv("FB_PAGE_ACCESS_TOKEN");
 
     // ---------- Facebook ----------
-    await shareIfNotDone(post.slug, "facebook", () =>
+    await shareIfNotDone(post.id, "facebook", () =>
       postToFacebook(
         mustEnv("FB_PAGE_ID"),
         fbToken,
@@ -88,7 +101,7 @@ export async function GET(req: Request) {
     );
 
     // ---------- Instagram ----------
-    await shareIfNotDone(post.slug, "instagram", () =>
+    await shareIfNotDone(post.id, "instagram", () =>
       postToInstagram(
         mustEnv("IG_BUSINESS_ID"),
         fbToken,
@@ -97,23 +110,24 @@ export async function GET(req: Request) {
       )
     );
 
-    // ---------- Pinterest (NO API / NO TOKEN) ----------
-    // ✅ Create a Pinterest share URL instead of calling Pinterest API
-    const pinterestShareUrl =
-      "https://www.pinterest.com/pin/create/button/?" +
-      new URLSearchParams({
-        url: postUrl,
-        media: post.cover_image_url,
-        description: caption,
-      }).toString();
-
-    // ✅ Still record as "posted" so it won't repeat (external_id = share url)
-    await shareIfNotDone(post.slug, "pinterest", async () => pinterestShareUrl);
+    // ---------- Pinterest ----------
+    // ⚠️ Pinterest API approval না থাকলে এটা fail করবে।
+    // তবুও duplicate আটকাতে post_id+platform logging থাকবে।
+    await shareIfNotDone(post.id, "pinterest", () =>
+      postToPinterest(
+        mustEnv("PINTEREST_ACCESS_TOKEN"),
+        mustEnv("PINTEREST_BOARD_ID"),
+        post.title,
+        caption,
+        postUrl,
+        post.cover_image_url
+      )
+    );
 
     return NextResponse.json({
       ok: true,
+      post_id: post.id,
       slug: post.slug,
-      pinterest_share: pinterestShareUrl, // ✅ return this link
     });
   } catch (e: any) {
     console.error("❌ social autopost failed:", e);
